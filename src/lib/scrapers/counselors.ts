@@ -48,13 +48,17 @@ class CounselorsScraper extends JournalScraperBase {
 
   async parseArticlesFromIssue(catcode: string, issueInfo: JournalIssue): Promise<JournalArticle[]> {
     const url = `${this.baseUrl}/KOR/journal/journal.php?ptype=list&catcode=${catcode}&lnb2=1`;
+    console.log(`[counselors] Fetching issue from: ${url}`);
 
     try {
       const res = await this.fetchWithRetry(url);
+      console.log(`[counselors] Response status: ${res.status}`);
+
       // The page uses EUC-KR encoding, need to decode properly
       const buffer = await res.arrayBuffer();
       const decoder = new TextDecoder('euc-kr');
       const html = decoder.decode(buffer);
+      console.log(`[counselors] HTML length: ${html.length}, has go_popup: ${html.includes('go_popup')}, has down.php: ${html.includes('down.php')}`);
 
       // Check if the issue exists (page might be empty or redirect)
       if (!html.includes('go_popup') && !html.includes('down.php')) {
@@ -62,7 +66,9 @@ class CounselorsScraper extends JournalScraperBase {
         return [];
       }
 
-      return this.parseHtml(html, issueInfo);
+      const articles = this.parseHtml(html, issueInfo);
+      console.log(`[counselors] Parsed ${articles.length} articles from issue ${catcode}`);
+      return articles;
     } catch (err) {
       console.error(`Failed to fetch issue ${catcode}:`, err);
       return [];

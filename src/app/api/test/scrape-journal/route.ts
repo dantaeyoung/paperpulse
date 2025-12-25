@@ -82,10 +82,16 @@ export async function GET(request: NextRequest) {
                 },
               });
               const contentType = res.headers.get('content-type') || '';
-              if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
-                const buffer = await res.arrayBuffer();
-                const uint8Array = new Uint8Array(buffer);
+              const buffer = await res.arrayBuffer();
+              const uint8Array = new Uint8Array(buffer);
 
+              // Check if it's a PDF by content-type OR by checking PDF magic bytes (%PDF)
+              const isPdf = contentType.includes('pdf') ||
+                            contentType.includes('octet-stream') ||
+                            contentType.includes('file/unknown') ||
+                            (uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46); // %PDF
+
+              if (isPdf && uint8Array.length > 100) {
                 // Save PDF to local file
                 const pdfDir = path.join(process.cwd(), 'public', 'pdfs', scraperKey || 'unknown');
                 if (!existsSync(pdfDir)) {
