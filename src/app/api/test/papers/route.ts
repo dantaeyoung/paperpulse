@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
 import { getAllScraperKeys } from '@/lib/scrapers/journal-base';
+import { existsSync } from 'fs';
+import path from 'path';
 import '@/lib/scrapers/counselors';
 
 // Get scraped papers with filtering and stats
@@ -158,14 +160,30 @@ export async function GET(request: NextRequest) {
 
       const { data: paperData } = await query;
 
+      // Get scraper key for this source to find PDF files
+      const selectedSource = sourcesWithScrapers.find(s => s.id === sourceId);
+      const scraperKey = (selectedSource?.config as { scraper?: string } | null)?.scraper;
+
       // Return papers with text length instead of full text
-      papers = (paperData || []).map(p => ({
-        ...p,
-        hasFullText: !!p.full_text,
-        fullTextLength: p.full_text?.length || 0,
-        fullTextPreview: p.full_text?.substring(0, 300) || null,
-        full_text: undefined, // Don't send full text in list view
-      }));
+      papers = (paperData || []).map(p => {
+        // Check if PDF exists locally
+        let localPdfUrl: string | null = null;
+        if (scraperKey && p.external_id) {
+          const pdfPath = path.join(process.cwd(), 'public', 'pdfs', scraperKey, `${p.external_id}.pdf`);
+          if (existsSync(pdfPath)) {
+            localPdfUrl = `/pdfs/${scraperKey}/${p.external_id}.pdf`;
+          }
+        }
+
+        return {
+          ...p,
+          hasFullText: !!p.full_text,
+          fullTextLength: p.full_text?.length || 0,
+          fullTextPreview: p.full_text?.substring(0, 300) || null,
+          full_text: undefined, // Don't send full text in list view
+          localPdfUrl,
+        };
+      });
     }
 
     return NextResponse.json({

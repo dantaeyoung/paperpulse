@@ -30,6 +30,7 @@ interface Paper {
   fullTextLength: number;
   fullTextPreview: string | null;
   collected_at: string;
+  localPdfUrl: string | null;
 }
 
 interface PaperDetail {
@@ -381,7 +382,7 @@ export default function ScraperDashboard() {
                         {paper.authors?.map(a => a.name).join(', ') || '저자 정보 없음'}
                       </p>
                     </div>
-                    <div className="text-right text-sm ml-4 whitespace-nowrap">
+                    <div className="text-right text-sm ml-4 whitespace-nowrap flex flex-col items-end gap-1">
                       {(paper.volume || paper.issue) ? (
                         <div className="text-gray-400">
                           제{paper.volume || '?'}권 제{paper.issue || '?'}호
@@ -389,13 +390,26 @@ export default function ScraperDashboard() {
                       ) : (
                         <div className="text-gray-600">권호 정보 없음</div>
                       )}
-                      {paper.hasFullText ? (
-                        <span className="text-green-400">
-                          ✓ {(paper.fullTextLength / 1000).toFixed(1)}k chars
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">No text</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {paper.localPdfUrl && (
+                          <a
+                            href={paper.localPdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
+                          >
+                            📄 PDF
+                          </a>
+                        )}
+                        {paper.hasFullText ? (
+                          <span className="text-green-400">
+                            ✓ {(paper.fullTextLength / 1000).toFixed(1)}k
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">No text</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {paper.fullTextPreview && (

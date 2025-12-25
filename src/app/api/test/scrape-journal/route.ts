@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
 import { getScraper, getAllScraperKeys } from '@/lib/scrapers/journal-base';
+import { writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
 // Import scrapers to register them
 import '@/lib/scrapers/counselors';
 
@@ -80,9 +83,21 @@ export async function GET(request: NextRequest) {
               });
               const contentType = res.headers.get('content-type') || '';
               if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
-                const { extractText: extractPdfText } = await import('unpdf');
                 const buffer = await res.arrayBuffer();
                 const uint8Array = new Uint8Array(buffer);
+
+                // Save PDF to local file
+                const pdfDir = path.join(process.cwd(), 'public', 'pdfs', scraperKey || 'unknown');
+                if (!existsSync(pdfDir)) {
+                  await mkdir(pdfDir, { recursive: true });
+                }
+                const pdfFileName = `${article.id}.pdf`;
+                const pdfPath = path.join(pdfDir, pdfFileName);
+                await writeFile(pdfPath, Buffer.from(buffer));
+                onProgress(`✓ Saved PDF: /pdfs/${scraperKey}/${pdfFileName}`);
+
+                // Extract text
+                const { extractText: extractPdfText } = await import('unpdf');
                 const { text } = await extractPdfText(uint8Array);
                 article.extractedText = Array.isArray(text) ? text.join('\n\n') : String(text || '');
                 onProgress(`✓ Extracted ${article.extractedText.length} chars`);
@@ -169,6 +184,7 @@ export async function GET(request: NextRequest) {
             issue: a.issue,
             url: a.url,
             pdfUrl: a.pdfUrl,
+            localPdfUrl: text.length > 0 ? `/pdfs/${scraperKey}/${a.id}.pdf` : null,
             hasExtractedText: text.length > 0,
             extractedTextLength: text.length,
             // Include first 500 chars of extracted text for preview
