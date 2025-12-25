@@ -358,71 +358,82 @@ export default function ScraperDashboard() {
           </div>
         )}
 
-        {/* Papers List */}
+        {/* Papers Table */}
         {selectedSource && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">
               📄 Papers {papers.length > 0 && `(${papers.length})`}
             </h2>
-            <div className="space-y-2">
-              {papers.map(paper => (
-                <div
-                  key={paper.id}
-                  onClick={() => fetchPaperDetail(paper.id)}
-                  className={`p-4 rounded-lg cursor-pointer transition ${
-                    selectedPaper?.id === paper.id
-                      ? 'bg-blue-800 border border-blue-500'
-                      : 'bg-gray-800 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{paper.title}</h3>
-                      <p className="text-gray-400 text-sm mt-1">
-                        {paper.authors?.map(a => a.name).join(', ') || '저자 정보 없음'}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm ml-4 whitespace-nowrap flex flex-col items-end gap-1">
-                      {(paper.volume || paper.issue) ? (
-                        <div className="text-gray-400">
-                          제{paper.volume || '?'}권 제{paper.issue || '?'}호
-                        </div>
-                      ) : (
-                        <div className="text-gray-600">권호 정보 없음</div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        {paper.localPdfUrl && (
-                          <a
-                            href={paper.localPdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
-                          >
-                            📄 PDF
-                          </a>
-                        )}
-                        {paper.hasFullText ? (
-                          <span className="text-green-400">
-                            ✓ {(paper.fullTextLength / 1000).toFixed(1)}k
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">No text</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {paper.fullTextPreview && (
-                    <p className="text-gray-500 text-sm mt-2 line-clamp-2">
-                      {paper.fullTextPreview}...
-                    </p>
-                  )}
-                </div>
-              ))}
-              {papers.length === 0 && !loading && (
-                <p className="text-gray-500">No papers found. Try scraping some issues first.</p>
-              )}
-            </div>
+            {papers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-700 text-left text-sm text-gray-400">
+                      <th className="py-3 px-2 w-16">Year</th>
+                      <th className="py-3 px-2 w-16">Vol</th>
+                      <th className="py-3 px-2 w-16">No.</th>
+                      <th className="py-3 px-2">제목</th>
+                      <th className="py-3 px-2 w-48">저자</th>
+                      <th className="py-3 px-2 w-24 text-center">PDF</th>
+                      <th className="py-3 px-2 w-20 text-right">Text</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {papers.map(paper => (
+                      <tr
+                        key={paper.id}
+                        onClick={() => fetchPaperDetail(paper.id)}
+                        className={`border-b border-gray-800 cursor-pointer transition hover:bg-gray-800 ${
+                          selectedPaper?.id === paper.id ? 'bg-blue-900' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-2 text-gray-400 text-sm">
+                          {paper.published_at?.substring(0, 4) || '-'}
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-sm">
+                          {paper.volume || '-'}
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-sm">
+                          {paper.issue || '-'}
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="font-medium text-sm">{paper.title}</div>
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-sm">
+                          {paper.authors?.map(a => a.name).join(', ') || '-'}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          {paper.localPdfUrl ? (
+                            <a
+                              href={paper.localPdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-block px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
+                            >
+                              📄 PDF
+                            </a>
+                          ) : (
+                            <span className="text-gray-600">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-right text-sm">
+                          {paper.hasFullText ? (
+                            <span className="text-green-400">
+                              ✓ {(paper.fullTextLength / 1000).toFixed(1)}k
+                            </span>
+                          ) : (
+                            <span className="text-gray-600">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              !loading && <p className="text-gray-500">No papers found. Try scraping some issues first.</p>
+            )}
           </div>
         )}
 
