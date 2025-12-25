@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
       // Build papers query
       let query = supabase
         .from('papers')
-        .select('id, external_id, title, authors, volume, issue, published_at, full_text, collected_at')
+        .select('id, external_id, title, authors, volume, issue, published_at, full_text, collected_at, journal_name')
         .eq('source_id', sourceId)
         .order('collected_at', { ascending: false })
         .limit(limit);

@@ -135,22 +135,26 @@ class CounselorsScraper extends JournalScraperBase {
       title = this.cleanText(titleMatch[1]);
     }
 
-    // Extract authors: in the last <td> before </tr>, contains names with <br />
-    // Pattern: look for <td> containing Korean names separated by <br />
-    const authorsTdPattern = /<td[^>]*>((?:[^<]*<br\s*\/?>\s*)+[^<]*)<\/td>\s*<\/tr>/i;
-    const authorsMatch = authorsTdPattern.exec(rowHtml);
-
+    // Extract authors: in the last <td> before </tr>
+    // The authors cell contains names, possibly separated by <br /> or commas
+    // Find all <td> tags and get the last one that looks like it contains author names
+    const allTds = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
     let authors: string[] = [];
-    if (authorsMatch) {
-      const authorsText = authorsMatch[1];
-      // Split by <br /> and clean each name
-      const names = authorsText.split(/<br\s*\/?>/i);
+
+    // The last <td> typically contains authors
+    if (allTds.length > 0) {
+      const lastTd = allTds[allTds.length - 1];
+      const tdContent = lastTd.replace(/<\/?td[^>]*>/gi, '');
+
+      // Split by <br /> or <br> and clean each name
+      const names = tdContent.split(/<br\s*\/?>/i);
       for (const name of names) {
         const cleaned = this.cleanText(name);
-        if (cleaned.length >= 2 && cleaned.length <= 10) {
+        // Korean names are typically 2-4 characters, allow up to 10 for longer names
+        if (cleaned.length >= 2 && cleaned.length <= 15) {
           // Filter out non-name content
-          const excludeWords = ['논문', '저자', '학회', '상담', '치료', '연구', '분석', '효과', '관계', '버튼'];
-          if (!excludeWords.some(w => cleaned.includes(w))) {
+          const excludeWords = ['논문', '저자', '학회', '상담', '치료', '연구', '분석', '효과', '관계', '버튼', 'Viewer', 'PDF', 'viewer'];
+          if (!excludeWords.some(w => cleaned.toLowerCase().includes(w.toLowerCase()))) {
             authors.push(cleaned);
           }
         }

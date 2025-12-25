@@ -31,6 +31,7 @@ interface Paper {
   fullTextPreview: string | null;
   collected_at: string;
   localPdfUrl: string | null;
+  journal_name: string | null;
 }
 
 interface PaperDetail {
@@ -369,13 +370,14 @@ export default function ScraperDashboard() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-gray-700 text-left text-sm text-gray-400">
+                      <th className="py-3 px-2 w-32">학회지</th>
                       <th className="py-3 px-2 w-16">Year</th>
-                      <th className="py-3 px-2 w-16">Vol</th>
-                      <th className="py-3 px-2 w-16">No.</th>
+                      <th className="py-3 px-2 w-12">Vol</th>
+                      <th className="py-3 px-2 w-12">No.</th>
                       <th className="py-3 px-2">제목</th>
-                      <th className="py-3 px-2 w-48">저자</th>
-                      <th className="py-3 px-2 w-24 text-center">PDF</th>
-                      <th className="py-3 px-2 w-20 text-right">Text</th>
+                      <th className="py-3 px-2 w-40">저자</th>
+                      <th className="py-3 px-2 w-20 text-center">PDF</th>
+                      <th className="py-3 px-2 w-16 text-right">Text</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -387,6 +389,9 @@ export default function ScraperDashboard() {
                           selectedPaper?.id === paper.id ? 'bg-blue-900' : ''
                         }`}
                       >
+                        <td className="py-3 px-2 text-gray-400 text-sm">
+                          {paper.journal_name || '-'}
+                        </td>
                         <td className="py-3 px-2 text-gray-400 text-sm">
                           {paper.published_at?.substring(0, 4) || '-'}
                         </td>
