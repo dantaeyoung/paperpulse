@@ -23,6 +23,26 @@ class CounselorsScraper extends JournalScraperBase {
     2018: [91, 96],    // Vol.19
   };
 
+  // Derive year/volume/issue from catcode
+  getIssueInfoFromCatcode(catcode: string): JournalIssue {
+    const catcodeNum = parseInt(catcode, 10);
+
+    for (const [yearStr, [start, end]] of Object.entries(this.catcodeRanges)) {
+      if (catcodeNum >= start && catcodeNum <= end) {
+        const year = parseInt(yearStr, 10);
+        return {
+          id: catcode,
+          year: String(year),
+          volume: String(year - 1999),
+          issue: String(catcodeNum - start + 1),
+        };
+      }
+    }
+
+    // Fallback for unknown catcodes
+    return { id: catcode, year: '', volume: '', issue: '' };
+  }
+
   async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
     const issues: JournalIssue[] = [];
     const currentYear = new Date().getFullYear();

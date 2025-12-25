@@ -68,6 +68,17 @@ export async function GET(request: NextRequest) {
         onProgress,
       });
 
+      // Get issue info (year/volume/issue) from catcode for counselors scraper
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const issueInfo = (scraper as any).getIssueInfoFromCatcode?.(issueId) || { year: '', volume: '', issue: '' };
+
+      // Fill in issue info for all articles
+      for (const article of articles) {
+        if (!article.year) article.year = issueInfo.year;
+        if (!article.volume) article.volume = issueInfo.volume;
+        if (!article.issue) article.issue = issueInfo.issue;
+      }
+
       // If articleId specified, filter to just that article and extract its PDF
       if (articleId) {
         articles = articles.filter(a => a.id === articleId);
