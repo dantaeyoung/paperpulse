@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
+import { getAllScraperKeys } from '@/lib/scrapers/journal-base';
+import '@/lib/scrapers/counselors';
 
 // Get scraped papers with filtering and stats
 export async function GET(request: NextRequest) {
+  const setup = request.nextUrl.searchParams.get('setup');
   const sourceId = request.nextUrl.searchParams.get('source_id');
   const volume = request.nextUrl.searchParams.get('volume');
   const issue = request.nextUrl.searchParams.get('issue');
@@ -12,6 +15,52 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient();
 
   try {
+    // Setup: Create source for a scraper if it doesn't exist
+    if (setup === 'counselors') {
+      // Check if source already exists
+      const { data: existing } = await supabase
+        .from('sources')
+        .select('id')
+        .eq('name', '한국상담학회지')
+        .single();
+
+      if (existing) {
+        // Update config to include scraper
+        await supabase
+          .from('sources')
+          .update({ config: { scraper: 'counselors' } })
+          .eq('id', existing.id);
+
+        return NextResponse.json({
+          message: 'Source updated with scraper config',
+          sourceId: existing.id
+        });
+      }
+
+      // Create new source
+      const { data: newSource, error } = await supabase
+        .from('sources')
+        .insert({
+          name: '한국상담학회지',
+          type: 'journal',
+          url: 'https://counselors.or.kr',
+          is_active: true,
+          is_global: true,
+          config: { scraper: 'counselors' },
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        message: 'Source created',
+        sourceId: newSource?.id
+      });
+    }
+
     // If requesting a specific paper, return full details
     if (paperId) {
       const { data: paper, error } = await supabase
@@ -27,16 +76,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ paper });
     }
 
-    // Get all sources with paper counts
+    // Get only sources with direct scrapers configured
     const { data: sources } = await supabase
       .from('sources')
       .select('id, name, type, url, config')
       .eq('is_active', true)
+      .not('config', 'is', null)
       .order('name');
+
+    // Filter to only sources that have a scraper key in config
+    const sourcesWithScrapers = (sources || []).filter(s => {
+      const config = s.config as { scraper?: string } | null;
+      return config?.scraper;
+    });
 
     // Get paper counts per source
     const sourcesWithCounts = await Promise.all(
-      (sources || []).map(async (source) => {
+      sourcesWithScrapers.map(async (source) => {
         const { count: totalCount } = await supabase
           .from('papers')
           .select('*', { count: 'exact', head: true })

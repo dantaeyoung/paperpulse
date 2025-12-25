@@ -43,6 +43,13 @@ interface PaperDetail {
   sources: { name: string };
 }
 
+interface ScrapedArticle {
+  id: string;
+  title: string;
+  authors: string[];
+  pdfUrl: string;
+}
+
 export default function ScraperDashboard() {
   const [sources, setSources] = useState<Source[]>([]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
@@ -54,6 +61,12 @@ export default function ScraperDashboard() {
   const [loading, setLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [scrapeLog, setScrapeLog] = useState<string[]>([]);
+
+  // For scraping new articles
+  const [availableIssues, setAvailableIssues] = useState<{ id: string; volume: string; issue: string; year: string }[]>([]);
+  const [selectedScrapeIssue, setSelectedScrapeIssue] = useState<string | null>(null);
+  const [articlesToScrape, setArticlesToScrape] = useState<ScrapedArticle[]>([]);
+  const [scrapingArticleId, setScrapingArticleId] = useState<string | null>(null);
 
   // Fetch sources and papers
   const fetchData = useCallback(async () => {
@@ -141,6 +154,22 @@ export default function ScraperDashboard() {
             </button>
           </div>
 
+          {/* Show setup option if no sources */}
+          {sources.length === 0 && !loading && (
+            <div className="p-6 bg-gray-800 rounded-lg text-center">
+              <p className="text-gray-400 mb-4">No journal scrapers configured yet.</p>
+              <button
+                onClick={async () => {
+                  await fetch('/api/test/papers?setup=counselors');
+                  fetchData();
+                }}
+                className="px-6 py-3 bg-green-600 rounded-lg hover:bg-green-700 font-semibold"
+              >
+                ➕ Setup 한국상담학회지 Scraper
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sources.map(source => (
               <div
@@ -176,19 +205,113 @@ export default function ScraperDashboard() {
         {/* Scraper Controls */}
         {selectedSourceData?.config?.scraper && (
           <div className="mb-8 p-4 bg-gray-800 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">🔧 Scraper Controls</h2>
-            <div className="flex gap-4 flex-wrap">
+            <h2 className="text-xl font-semibold mb-4">🔧 Scrape New Articles</h2>
+
+            {/* Step 1: Load Issues */}
+            <div className="mb-4">
               <button
-                onClick={() => runScraper(selectedSourceData.config!.scraper!)}
+                onClick={async () => {
+                  setScraping(true);
+                  setScrapeLog(['Loading issues...']);
+                  try {
+                    const res = await fetch(`/api/test/scrape-journal?scraper=${selectedSourceData.config!.scraper}&year=${new Date().getFullYear()}`);
+                    const data = await res.json();
+                    setAvailableIssues(data.issues || []);
+                    setScrapeLog([`Found ${data.issues?.length || 0} issues for ${data.year}`]);
+                  } catch (err) {
+                    setScrapeLog([`Error: ${err}`]);
+                  }
+                  setScraping(false);
+                }}
                 disabled={scraping}
-                className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
               >
-                {scraping ? 'Scraping...' : '📥 List Current Year Issues'}
+                {scraping ? 'Loading...' : '📅 Load Issues'}
               </button>
             </div>
 
+            {/* Step 2: Select Issue */}
+            {availableIssues.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">Select Issue:</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableIssues.map(iss => (
+                    <button
+                      key={iss.id}
+                      onClick={async () => {
+                        setSelectedScrapeIssue(iss.id);
+                        setScraping(true);
+                        setScrapeLog([`Loading articles from issue ${iss.id}...`]);
+                        try {
+                          const res = await fetch(`/api/test/scrape-journal?scraper=${selectedSourceData.config!.scraper}&issue=${iss.id}`);
+                          const data = await res.json();
+                          setArticlesToScrape(data.articles || []);
+                          setScrapeLog([`Found ${data.articles?.length || 0} articles`]);
+                        } catch (err) {
+                          setScrapeLog([`Error: ${err}`]);
+                        }
+                        setScraping(false);
+                      }}
+                      className={`px-3 py-1 rounded ${
+                        selectedScrapeIssue === iss.id ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
+                      }`}
+                    >
+                      제{iss.volume}권 제{iss.issue}호
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Scrape Individual Articles */}
+            {articlesToScrape.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">Articles to Scrape:</label>
+                <div className="space-y-2 max-h-60 overflow-auto">
+                  {articlesToScrape.map(article => (
+                    <div key={article.id} className="flex items-center justify-between p-2 bg-gray-700 rounded">
+                      <div className="flex-1 mr-4">
+                        <div className="text-sm">{article.title}</div>
+                        <div className="text-xs text-gray-400">{article.authors?.join(', ')}</div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setScrapingArticleId(article.id);
+                          setScrapeLog(prev => [...prev, `Scraping: ${article.title.substring(0, 40)}...`]);
+                          try {
+                            // Scrape this single article with PDF extraction
+                            const res = await fetch(
+                              `/api/test/scrape-journal?scraper=${selectedSourceData.config!.scraper}&issue=${selectedScrapeIssue}&article=${article.id}&extract=true&save=true`
+                            );
+                            const data = await res.json();
+                            if (data.error) {
+                              setScrapeLog(prev => [...prev, `✗ Error: ${data.error}`]);
+                            } else {
+                              const savedArticle = data.articles?.find((a: ScrapedArticle) => a.id === article.id);
+                              const textLen = savedArticle?.extractedTextLength || 0;
+                              setScrapeLog(prev => [...prev, `✓ Saved! ${textLen > 0 ? `(${(textLen/1000).toFixed(1)}k chars)` : '(no text)'}`]);
+                              // Refresh data
+                              fetchData();
+                            }
+                          } catch (err) {
+                            setScrapeLog(prev => [...prev, `✗ Failed: ${err}`]);
+                          }
+                          setScrapingArticleId(null);
+                        }}
+                        disabled={scrapingArticleId === article.id}
+                        className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                      >
+                        {scrapingArticleId === article.id ? '⏳ Scraping...' : '📥 Scrape'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Log */}
             {scrapeLog.length > 0 && (
-              <div className="mt-4 p-3 bg-black rounded font-mono text-sm max-h-60 overflow-auto">
+              <div className="mt-4 p-3 bg-black rounded font-mono text-sm max-h-40 overflow-auto">
                 {scrapeLog.map((log, i) => (
                   <div key={i} className="text-gray-300">{log}</div>
                 ))}
@@ -227,7 +350,7 @@ export default function ScraperDashboard() {
                       : 'bg-gray-700 hover:bg-gray-600'
                   }`}
                 >
-                  Vol.{v.volume} No.{v.issue} ({v.count})
+                  제{v.volume}권 제{v.issue}호 ({v.count}건)
                 </button>
               ))}
             </div>
@@ -255,13 +378,17 @@ export default function ScraperDashboard() {
                     <div className="flex-1">
                       <h3 className="font-medium">{paper.title}</h3>
                       <p className="text-gray-400 text-sm mt-1">
-                        {paper.authors?.map(a => a.name).join(', ')}
+                        {paper.authors?.map(a => a.name).join(', ') || '저자 정보 없음'}
                       </p>
                     </div>
-                    <div className="text-right text-sm ml-4">
-                      <div className="text-gray-500">
-                        Vol.{paper.volume} No.{paper.issue}
-                      </div>
+                    <div className="text-right text-sm ml-4 whitespace-nowrap">
+                      {(paper.volume || paper.issue) ? (
+                        <div className="text-gray-400">
+                          제{paper.volume || '?'}권 제{paper.issue || '?'}호
+                        </div>
+                      ) : (
+                        <div className="text-gray-600">권호 정보 없음</div>
+                      )}
                       {paper.hasFullText ? (
                         <span className="text-green-400">
                           ✓ {(paper.fullTextLength / 1000).toFixed(1)}k chars
@@ -297,7 +424,7 @@ export default function ScraperDashboard() {
                       {selectedPaper.authors?.map(a => a.name).join(', ')}
                     </p>
                     <p className="text-gray-500 text-sm mt-1">
-                      {selectedPaper.sources?.name} · Vol.{selectedPaper.volume} No.{selectedPaper.issue}
+                      {selectedPaper.sources?.name} · 제{selectedPaper.volume || '?'}권 제{selectedPaper.issue || '?'}호
                     </p>
                   </div>
                   <button

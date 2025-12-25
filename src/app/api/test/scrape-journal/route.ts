@@ -7,6 +7,7 @@ import '@/lib/scrapers/counselors';
 export async function GET(request: NextRequest) {
   const scraperKey = request.nextUrl.searchParams.get('scraper');
   const issueId = request.nextUrl.searchParams.get('issue');
+  const articleId = request.nextUrl.searchParams.get('article'); // Single article ID
   const year = request.nextUrl.searchParams.get('year');
   const extractText = request.nextUrl.searchParams.get('extract') === 'true';
   const save = request.nextUrl.searchParams.get('save') === 'true';
@@ -56,30 +57,48 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Scrape a specific issue
+    // Scrape a specific issue (or single article within issue)
     if (issueId) {
-      onProgress(`Scraping issue ${issueId}...`);
-      const articles = await scraper.collectIssue(issueId, {
-        extractText,
+      onProgress(`Scraping issue ${issueId}${articleId ? ` (article ${articleId})` : ''}...`);
+      let articles = await scraper.collectIssue(issueId, {
+        extractText: articleId ? false : extractText, // Don't extract if we're filtering to one article
         onProgress,
       });
 
-      // Save to database if requested
-      if (save && token) {
-        const supabase = createServerClient();
-
-        // Get user from token
-        const { data: user, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('token', token)
-          .single();
-
-        if (userError || !user) {
-          return NextResponse.json({
-            error: 'Invalid token',
-          }, { status: 401 });
+      // If articleId specified, filter to just that article and extract its PDF
+      if (articleId) {
+        articles = articles.filter(a => a.id === articleId);
+        if (articles.length > 0 && extractText) {
+          const article = articles[0];
+          if (article.pdfUrl) {
+            try {
+              onProgress(`Downloading PDF for: ${article.title.substring(0, 50)}...`);
+              const res = await fetch(article.pdfUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                },
+              });
+              const contentType = res.headers.get('content-type') || '';
+              if (contentType.includes('pdf') || contentType.includes('octet-stream')) {
+                const { extractText: extractPdfText } = await import('unpdf');
+                const buffer = await res.arrayBuffer();
+                const uint8Array = new Uint8Array(buffer);
+                const { text } = await extractPdfText(uint8Array);
+                article.extractedText = Array.isArray(text) ? text.join('\n\n') : String(text || '');
+                onProgress(`✓ Extracted ${article.extractedText.length} chars`);
+              } else {
+                onProgress(`✗ Not a PDF (${contentType})`);
+              }
+            } catch (err) {
+              onProgress(`✗ PDF failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+            }
+          }
         }
+      }
+
+      // Save to database if requested
+      if (save) {
+        const supabase = createServerClient();
 
         // Get or create source for this journal
         let { data: source } = await supabase
