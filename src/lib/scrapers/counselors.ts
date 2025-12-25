@@ -149,11 +149,14 @@ class CounselorsScraper extends JournalScraperBase {
       // Split by <br /> or <br> and clean each name
       const names = tdContent.split(/<br\s*\/?>/i);
       for (const name of names) {
-        const cleaned = this.cleanText(name);
+        let cleaned = this.cleanText(name);
+        // Remove common suffixes like "보기", "-->", arrows, etc.
+        cleaned = cleaned.replace(/\s*(보기|바로보기|-->|->|…|, )\s*/g, '').trim();
+
         // Korean names are typically 2-4 characters, allow up to 10 for longer names
         if (cleaned.length >= 2 && cleaned.length <= 15) {
           // Filter out non-name content
-          const excludeWords = ['논문', '저자', '학회', '상담', '치료', '연구', '분석', '효과', '관계', '버튼', 'Viewer', 'PDF', 'viewer'];
+          const excludeWords = ['논문', '저자', '학회', '상담', '치료', '연구', '분석', '효과', '관계', '버튼', 'Viewer', 'PDF', 'viewer', '다운', '보기', '바로'];
           if (!excludeWords.some(w => cleaned.toLowerCase().includes(w.toLowerCase()))) {
             authors.push(cleaned);
           }
