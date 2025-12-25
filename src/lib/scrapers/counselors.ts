@@ -12,8 +12,9 @@ class CounselorsScraper extends JournalScraperBase {
 
   // Catcode ranges by year (discovered from website)
   // Volume number = year - 1999 (e.g., 2025 = Vol.26)
+  // Pattern: 6 issues per year starting from 2003, 4 issues for 2000-2002
   private catcodeRanges: Record<number, [number, number]> = {
-    2025: [133, 138],  // Vol.26, up to 6 issues
+    2025: [133, 138],  // Vol.26
     2024: [127, 132],  // Vol.25
     2023: [121, 126],  // Vol.24
     2022: [115, 120],  // Vol.23
@@ -21,6 +22,24 @@ class CounselorsScraper extends JournalScraperBase {
     2020: [103, 108],  // Vol.21
     2019: [97, 102],   // Vol.20
     2018: [91, 96],    // Vol.19
+    2017: [85, 90],    // Vol.18
+    2016: [79, 84],    // Vol.17
+    2015: [73, 78],    // Vol.16
+    2014: [67, 72],    // Vol.15
+    2013: [61, 66],    // Vol.14
+    2012: [55, 60],    // Vol.13
+    2011: [49, 54],    // Vol.12
+    2010: [43, 48],    // Vol.11
+    2009: [37, 42],    // Vol.10
+    2008: [31, 36],    // Vol.9
+    2007: [25, 30],    // Vol.8
+    2006: [19, 24],    // Vol.7
+    2005: [13, 18],    // Vol.6
+    2004: [7, 12],     // Vol.5
+    2003: [5, 6],      // Vol.4 (only 2 issues?)
+    2002: [3, 4],      // Vol.3
+    2001: [2, 2],      // Vol.2
+    2000: [1, 1],      // Vol.1
   };
 
   // Derive year/volume/issue from catcode
@@ -44,6 +63,59 @@ class CounselorsScraper extends JournalScraperBase {
   }
 
   async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
+    // Fetch the issue list page to get all available issues dynamically
+    const url = `${this.baseUrl}/KOR/journal/journal_year.php`;
+    console.log(`[counselors] Fetching issue list from: ${url}`);
+
+    try {
+      const res = await this.fetchWithRetry(url);
+      const buffer = await res.arrayBuffer();
+      const decoder = new TextDecoder('euc-kr');
+      const html = decoder.decode(buffer);
+
+      const issues: JournalIssue[] = [];
+
+      // Parse links like: /KOR/journal/journal.php?ptype=list&catcode=137&lnb2=1
+      // The page has year headings like "2025년" followed by issue links
+      const linkPattern = /catcode=(\d+)/g;
+      const yearPattern = /(\d{4})년/g;
+
+      // Find all catcodes
+      const catcodes: number[] = [];
+      let match;
+      while ((match = linkPattern.exec(html)) !== null) {
+        const catcode = parseInt(match[1], 10);
+        if (!catcodes.includes(catcode)) {
+          catcodes.push(catcode);
+        }
+      }
+
+      // Sort catcodes descending (newest first)
+      catcodes.sort((a, b) => b - a);
+
+      // Convert catcodes to issues using our mapping
+      for (const catcode of catcodes) {
+        const issueInfo = this.getIssueInfoFromCatcode(String(catcode));
+        const year = parseInt(issueInfo.year, 10);
+
+        // Filter by year range
+        if (year >= startYear && year <= endYear) {
+          issues.push(issueInfo);
+        }
+      }
+
+      console.log(`[counselors] Found ${issues.length} issues between ${startYear}-${endYear}`);
+      return issues;
+
+    } catch (err) {
+      console.error('[counselors] Failed to fetch issue list, falling back to hardcoded ranges:', err);
+      // Fallback to hardcoded ranges
+      return this.getIssuesFallback(startYear, endYear);
+    }
+  }
+
+  // Fallback method using hardcoded ranges
+  private getIssuesFallback(startYear: number, endYear: number): JournalIssue[] {
     const issues: JournalIssue[] = [];
     const currentYear = new Date().getFullYear();
 
@@ -52,8 +124,6 @@ class CounselorsScraper extends JournalScraperBase {
       if (!range) continue;
 
       for (let catcode = range[0]; catcode <= range[1]; catcode++) {
-        // For current year, check if issue exists by trying to fetch it
-        // For past years, include all issues in range
         issues.push({
           id: String(catcode),
           volume: String(year - 1999),

@@ -65,6 +65,7 @@ export default function ScraperDashboard() {
   const [scrapeLog, setScrapeLog] = useState<string[]>([]);
 
   // For scraping new articles
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [availableIssues, setAvailableIssues] = useState<{ id: string; volume: string; issue: string; year: string }[]>([]);
   const [selectedScrapeIssue, setSelectedScrapeIssue] = useState<string | null>(null);
   const [articlesToScrape, setArticlesToScrape] = useState<ScrapedArticle[]>([]);
@@ -209,17 +210,32 @@ export default function ScraperDashboard() {
           <div className="mb-8 p-4 bg-gray-800 rounded-lg">
             <h2 className="text-xl font-semibold mb-4">🔧 Scrape New Articles</h2>
 
-            {/* Step 1: Load Issues */}
-            <div className="mb-4">
+            {/* Step 1: Select Year and Load Issues */}
+            <div className="mb-4 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Year:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                  className="bg-gray-700 text-white px-3 py-2 rounded"
+                >
+                  {Array.from({ length: new Date().getFullYear() - 1999 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={async () => {
                   setScraping(true);
-                  setScrapeLog(['Loading issues...']);
+                  setAvailableIssues([]);
+                  setSelectedScrapeIssue(null);
+                  setArticlesToScrape([]);
+                  setScrapeLog([`Loading issues for ${selectedYear}...`]);
                   try {
-                    const res = await fetch(`/api/test/scrape-journal?scraper=${selectedSourceData.config!.scraper}&year=${new Date().getFullYear()}`);
+                    const res = await fetch(`/api/test/scrape-journal?scraper=${selectedSourceData.config!.scraper}&year=${selectedYear}`);
                     const data = await res.json();
                     setAvailableIssues(data.issues || []);
-                    setScrapeLog([`Found ${data.issues?.length || 0} issues for ${data.year}`]);
+                    setScrapeLog([`Found ${data.issues?.length || 0} issues for ${selectedYear}`]);
                   } catch (err) {
                     setScrapeLog([`Error: ${err}`]);
                   }
