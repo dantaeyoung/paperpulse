@@ -411,7 +411,7 @@ export default function IssuePage({ params }: PageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-3 sm:p-6">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -456,7 +456,7 @@ export default function IssuePage({ params }: PageProps) {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="text-3xl font-bold text-blue-400">{articles.length}</div>
             <div className="text-gray-400 text-sm">Total Papers</div>
@@ -477,16 +477,10 @@ export default function IssuePage({ params }: PageProps) {
               </button>
             )}
           </div>
-          <div className="bg-gray-800 rounded-lg p-4">
-            <div className="text-3xl font-bold text-yellow-400">
-              ${((papersWithFullText * 45000 * 0.10 / 1000000) + 0.02).toFixed(2)}
-            </div>
-            <div className="text-gray-400 text-sm">Est. Summary Cost</div>
-          </div>
         </div>
 
         {/* Trend Summary Section */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold">트렌드 분석</h2>
             <div className="flex items-center gap-3">
@@ -673,7 +667,7 @@ export default function IssuePage({ params }: PageProps) {
         </div>
 
         {/* Papers List */}
-        <div className="bg-gray-800 rounded-lg p-6">
+        <div className="bg-gray-800 rounded-lg p-4 sm:p-6">
           <h2 className="text-xl font-bold mb-4">Papers in this Issue</h2>
 
           {loading ? (
@@ -686,20 +680,22 @@ export default function IssuePage({ params }: PageProps) {
                 <div
                   key={article.id}
                   onClick={() => setSelectedPaper(article)}
-                  className="flex items-start gap-3 p-3 bg-gray-900 rounded hover:bg-gray-800 transition-colors cursor-pointer"
+                  className="p-3 bg-gray-900 rounded hover:bg-gray-800 transition-colors cursor-pointer"
                 >
-                  <span className="text-gray-500 text-sm w-6 text-right flex-shrink-0">
-                    {article.paperNumber || idx + 1}.
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-blue-400 hover:text-blue-300 font-medium">
-                      {article.title}
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 text-sm w-6 text-right flex-shrink-0">
+                      {article.paperNumber || idx + 1}.
                     </span>
-                    <div className="text-gray-500 text-sm mt-1">
-                      {article.authors.join(', ') || 'No authors'}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-blue-400 hover:text-blue-300 font-medium">
+                        {article.title}
+                      </span>
+                      <div className="text-gray-500 text-sm mt-1">
+                        {article.authors.join(', ') || 'No authors'}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2 mt-2 ml-8" onClick={(e) => e.stopPropagation()}>
                     {article.dbPaperId && extractedPaperIds.has(article.dbPaperId) && (
                       <span className="text-purple-400" title="AI 분석 완료">🤖</span>
                     )}
