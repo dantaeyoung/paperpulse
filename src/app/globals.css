@@ -1,19 +1,12 @@
 @import "tailwindcss";
 
-/* Force dark mode - app is designed for dark theme */
-:root {
-  --background: #030712; /* gray-950 */
-  --foreground: #f3f4f6; /* gray-100 */
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+/* Force dark mode colors directly */
+html, body {
+  background-color: #030712 !important; /* gray-950 */
+  color: #f3f4f6 !important; /* gray-100 */
 }

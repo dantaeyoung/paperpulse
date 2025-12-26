@@ -53,7 +53,7 @@ export default function IssuesPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Journal Issues</h1>
+      <h1 className="text-2xl font-bold mb-6 text-white">Journal Issues</h1>
 
       {journals.length === 0 ? (
         <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center text-gray-500">
@@ -64,7 +64,7 @@ export default function IssuesPage() {
           {journals.map((journal) => (
             <div key={journal.scraperKey} className="bg-gray-900 rounded-lg border border-gray-800">
               <div className="p-4 border-b border-gray-800">
-                <h2 className="font-semibold text-lg">{journal.name}</h2>
+                <h2 className="font-semibold text-lg text-white">{journal.name}</h2>
                 <p className="text-sm text-gray-500">{journal.issues.length} issues cached</p>
               </div>
               <div className="divide-y divide-gray-800">
@@ -75,9 +75,9 @@ export default function IssuesPage() {
                     className="flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
                   >
                     <div>
-                      <div className="font-medium">
+                      <div className="font-medium text-white">
                         Vol.{issue.issue_info.volume} No.{issue.issue_info.issue}
-                        <span className="text-gray-500 ml-2">({issue.issue_info.year})</span>
+                        <span className="text-gray-400 ml-2">({issue.issue_info.year})</span>
                       </div>
                       <div className="text-sm text-gray-500">
                         {issue.article_count} articles

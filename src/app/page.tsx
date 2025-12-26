@@ -45,7 +45,7 @@ export default function Home() {
           className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-purple-500/50 transition-colors"
         >
           <div className="text-2xl mb-2">📄</div>
-          <h2 className="font-semibold mb-1">All Papers</h2>
+          <h2 className="font-semibold mb-1 text-white">All Papers</h2>
           <p className="text-sm text-gray-400">Browse all collected papers</p>
         </Link>
 
@@ -54,7 +54,7 @@ export default function Home() {
           className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-purple-500/50 transition-colors"
         >
           <div className="text-2xl mb-2">📚</div>
-          <h2 className="font-semibold mb-1">Journal Issues</h2>
+          <h2 className="font-semibold mb-1 text-white">Journal Issues</h2>
           <p className="text-sm text-gray-400">Browse by issue with AI summaries</p>
         </Link>
       </div>
@@ -62,7 +62,7 @@ export default function Home() {
       {/* Journal List */}
       <div className="bg-gray-900 rounded-lg border border-gray-800">
         <div className="p-4 border-b border-gray-800">
-          <h2 className="font-semibold">Registered Journals</h2>
+          <h2 className="font-semibold text-white">Registered Journals</h2>
         </div>
 
         {loading ? (
@@ -74,8 +74,8 @@ export default function Home() {
             {journals.map((journal) => (
               <div key={journal.scraperKey} className="p-4 flex justify-between items-center">
                 <div>
-                  <div className="font-medium">{journal.name}</div>
-                  <div className="text-sm text-gray-500">
+                  <div className="font-medium text-white">{journal.name}</div>
+                  <div className="text-sm text-gray-400">
                     {journal.paperCount > 0 && `${journal.paperCount} papers collected`}
                   </div>
                 </div>
