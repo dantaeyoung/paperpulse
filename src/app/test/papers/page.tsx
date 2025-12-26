@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 
 interface Paper {
   id: string;
@@ -21,8 +20,11 @@ interface Paper {
   localPdfUrl: string | null;
 }
 
+interface PaperDetail extends Paper {
+  fullText: string | null;
+}
+
 export default function AllPapersPage() {
-  const router = useRouter();
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, scraped: 0, withFullText: 0 });
@@ -43,6 +45,11 @@ export default function AllPapersPage() {
   const [lastFetchedIssueKey, setLastFetchedIssueKey] = useState<string | null>(null);
   const [checkingNew, setCheckingNew] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Paper detail modal
+  const [selectedPaper, setSelectedPaper] = useState<PaperDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [scrapingDetail, setScrapingDetail] = useState(false);
 
   // Check scrape status on load and poll while running
   const checkScrapeStatus = async () => {
@@ -84,6 +91,19 @@ export default function AllPapersPage() {
   useEffect(() => {
     fetchPapers();
     checkScrapeStatus();
+  }, []);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedPaper(null);
+        setShowConfirmModal(false);
+        setShowCancelModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
   }, []);
 
   // Poll for status while scraping
@@ -299,6 +319,51 @@ export default function AllPapersPage() {
     });
   }, [papers, yearFilter, volumeFilter, searchFilter, statusFilter]);
 
+  // Open paper detail modal
+  const openPaperModal = async (paper: Paper) => {
+    setLoadingDetail(true);
+    setSelectedPaper({ ...paper, fullText: null });
+
+    try {
+      const res = await fetch(`/api/test/paper/${paper.id}`);
+      const data = await res.json();
+      if (data.paper) {
+        setSelectedPaper(data.paper);
+      }
+    } catch (err) {
+      console.error('Fetch paper detail error:', err);
+    }
+
+    setLoadingDetail(false);
+  };
+
+  // Scrape paper from modal
+  const scrapeFromModal = async () => {
+    if (!selectedPaper) return;
+
+    setScrapingDetail(true);
+
+    try {
+      const res = await fetch(`/api/test/paper/${selectedPaper.id}/scrape`, { method: 'POST' });
+      const data = await res.json();
+
+      if (!data.error) {
+        // Refresh paper detail
+        const detailRes = await fetch(`/api/test/paper/${selectedPaper.id}`);
+        const detailData = await detailRes.json();
+        if (detailData.paper) {
+          setSelectedPaper(detailData.paper);
+        }
+        // Also refresh the papers list to update status
+        mergePaperUpdates();
+      }
+    } catch (err) {
+      console.error('Scrape error:', err);
+    }
+
+    setScrapingDetail(false);
+  };
+
   // Scrape a single paper
   const scrapePaper = async (paper: Paper) => {
     setScrapingId(paper.id);
@@ -466,7 +531,7 @@ export default function AllPapersPage() {
                 {filteredPapers.map((paper, idx) => (
                   <tr
                     key={`${paper.id}-${idx}`}
-                    onClick={() => router.push(`/test/papers/${paper.id}`)}
+                    onClick={() => openPaperModal(paper)}
                     className={`border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-opacity duration-300 ${
                       isPaperVerified(paper) ? 'opacity-100' : 'opacity-40'
                     }`}
@@ -575,6 +640,135 @@ export default function AllPapersPage() {
                 >
                   Yes, Cancel
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Paper Detail Modal */}
+        {selectedPaper && (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedPaper(null)}
+          >
+            <div
+              className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 pb-4">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1">
+                    <h2 className="text-xl font-bold mb-2">{selectedPaper.title}</h2>
+                    <div className="flex flex-wrap gap-2 text-sm text-gray-400">
+                      <span>{selectedPaper.journal}</span>
+                      <span>•</span>
+                      <span>{selectedPaper.year}년</span>
+                      <span>•</span>
+                      <span>제{selectedPaper.volume}권 제{selectedPaper.issue}호</span>
+                      {selectedPaper.paperNumber && (
+                        <>
+                          <span>•</span>
+                          <span>#{selectedPaper.paperNumber}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedPaper(null)}
+                    className="text-gray-400 hover:text-white text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {/* Authors */}
+                <div className="mb-4">
+                  <span className="text-gray-500 text-sm">Authors: </span>
+                  <span className="text-gray-300">{selectedPaper.authors.join(', ') || 'N/A'}</span>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-3 mb-6">
+                  {selectedPaper.localPdfUrl ? (
+                    <a
+                      href={selectedPaper.localPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-medium"
+                    >
+                      📄 View PDF
+                    </a>
+                  ) : selectedPaper.pdfUrl ? (
+                    <a
+                      href={selectedPaper.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded font-medium"
+                    >
+                      📄 Download PDF (External)
+                    </a>
+                  ) : null}
+
+                  <a
+                    href={selectedPaper.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+                  >
+                    🔗 Original Page
+                  </a>
+
+                  {!selectedPaper.isScraped && (
+                    <button
+                      onClick={scrapeFromModal}
+                      disabled={scrapingDetail}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
+                    >
+                      {scrapingDetail ? '⏳ Scraping...' : '📥 Scrape Full Text'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className={`px-3 py-1 rounded text-sm ${selectedPaper.isScraped ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>
+                    {selectedPaper.isScraped ? '✓ Scraped' : '○ Not Scraped'}
+                  </div>
+                  {selectedPaper.hasFullText && (
+                    <div className="px-3 py-1 rounded text-sm bg-blue-900 text-blue-300">
+                      {(selectedPaper.fullTextLength / 1000).toFixed(1)}k characters
+                    </div>
+                  )}
+                </div>
+
+                {/* Full text */}
+                {loadingDetail ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <div className="animate-spin h-6 w-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                    Loading details...
+                  </div>
+                ) : selectedPaper.hasFullText && selectedPaper.fullText ? (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Full Text</h3>
+                    <div className="bg-gray-900 rounded p-4 max-h-[400px] overflow-y-auto">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-300 font-mono">
+                        {selectedPaper.fullText}
+                      </pre>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-900 rounded p-6 text-center text-gray-500">
+                    {selectedPaper.isScraped ? (
+                      <p>Full text was not extracted from this paper.</p>
+                    ) : (
+                      <p>Click "Scrape Full Text" to extract the content from the PDF.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
