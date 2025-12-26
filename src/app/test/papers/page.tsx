@@ -472,6 +472,7 @@ export default function AllPapersPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-700 text-left text-gray-400">
+                  <th className="py-3 px-2 w-32">Journal</th>
                   <th className="py-3 px-2 w-16">Year</th>
                   <th className="py-3 px-2 w-14">Vol</th>
                   <th className="py-3 px-2 w-14">Issue</th>
@@ -490,6 +491,9 @@ export default function AllPapersPage() {
                       isPaperVerified(paper) ? 'opacity-100' : 'opacity-40'
                     }`}
                   >
+                    <td className="py-2 px-2 text-gray-400 truncate max-w-[120px]" title={paper.journal}>
+                      {paper.journal || '-'}
+                    </td>
                     <td className="py-2 px-2 text-gray-400">{paper.year || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.volume || '-'}</td>
                     <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
@@ -555,7 +559,7 @@ export default function AllPapersPage() {
                 ))}
                 {bulkScraping && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center">
+                    <td colSpan={8} className="py-8 text-center">
                       <div className="flex items-center justify-center gap-3 text-gray-400">
                         <div className="animate-spin h-5 w-5 border-2 border-purple-500 border-t-transparent rounded-full"></div>
                         <span>Compiling papers... {bulkProgress}</span>
