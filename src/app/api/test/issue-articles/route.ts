@@ -12,6 +12,7 @@ interface CachedArticle {
   year: string;
   volume: string;
   issue: string;
+  paperNumber?: number;
   url: string;
   pdfUrl: string;
 }
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
           year: a.year || issueInfo.year,
           volume: a.volume || issueInfo.volume,
           issue: a.issue || issueInfo.issue,
+          paperNumber: a.paperNumber,
           url: a.url,
           pdfUrl: a.pdfUrl,
         }));
@@ -96,6 +98,7 @@ export async function GET(request: NextRequest) {
         year: a.year,
         volume: a.volume,
         issue: a.issue,
+        paperNumber: a.paperNumber,
         url: a.url,
         pdfUrl: a.pdfUrl,
       }));
@@ -168,6 +171,7 @@ export async function GET(request: NextRequest) {
         year: article.year,
         volume: article.volume,
         issue: article.issue,
+        paperNumber: article.paperNumber,
         url: article.url,
         pdfUrl: article.pdfUrl,
         // Database status

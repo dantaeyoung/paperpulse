@@ -10,6 +10,7 @@ interface Paper {
   year: string;
   volume: string;
   issue: string;
+  paperNumber?: number;
   title: string;
   authors: string[];
   url: string;
@@ -303,7 +304,8 @@ export default function AllPapersPage() {
                 <tr className="border-b border-gray-700 text-left text-gray-400">
                   <th className="py-3 px-2 w-16">Year</th>
                   <th className="py-3 px-2 w-14">Vol</th>
-                  <th className="py-3 px-2 w-14">No.</th>
+                  <th className="py-3 px-2 w-14">Issue</th>
+                  <th className="py-3 px-2 w-10">#</th>
                   <th className="py-3 px-2">Title</th>
                   <th className="py-3 px-2 w-40">Authors</th>
                   <th className="py-3 px-2 w-28 text-center">Status</th>
@@ -319,6 +321,7 @@ export default function AllPapersPage() {
                     <td className="py-2 px-2 text-gray-400">{paper.year || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.volume || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.issue || '-'}</td>
+                    <td className="py-2 px-2 text-gray-400">{paper.paperNumber || '-'}</td>
                     <td className="py-2 px-2">
                       <span className="hover:text-blue-400">
                         {paper.title}

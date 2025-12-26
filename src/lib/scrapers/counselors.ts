@@ -196,6 +196,11 @@ class CounselorsScraper extends JournalScraperBase {
   }
 
   private extractArticleFromRow(rowHtml: string, articleId: string, issueInfo: JournalIssue): JournalArticle | null {
+    // Extract paper number: in first <td><b>1</b></td>
+    const numberPattern = /<td[^>]*>\s*<b>(\d+)<\/b>\s*<\/td>/i;
+    const numberMatch = numberPattern.exec(rowHtml);
+    const paperNumber = numberMatch ? parseInt(numberMatch[1], 10) : undefined;
+
     // Extract title: in <td style="text-align:left">TITLE<!-- ID --></td>
     const titlePattern = /<td[^>]*style="text-align:left"[^>]*>([\s\S]*?)<!--\s*\d+\s*-->/i;
     const titleMatch = titlePattern.exec(rowHtml);
@@ -241,6 +246,7 @@ class CounselorsScraper extends JournalScraperBase {
       year: issueInfo.year,
       volume: issueInfo.volume,
       issue: issueInfo.issue,
+      paperNumber,
       url: `${this.baseUrl}/KOR/journal/journal.php?ptype=view&idx=${articleId}`,
       pdfUrl: this.getPdfUrl(articleId),
     };

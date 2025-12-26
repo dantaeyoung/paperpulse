@@ -10,6 +10,7 @@ interface CachedArticle {
   year: string;
   volume: string;
   issue: string;
+  paperNumber?: number;
   url: string;
   pdfUrl: string;
 }
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
       year: string;
       volume: string;
       issue: string;
+      paperNumber?: number;
       title: string;
       authors: string[];
       url: string;
@@ -102,6 +104,7 @@ export async function GET(request: NextRequest) {
           year: article.year || issueInfo.year || '',
           volume: article.volume || issueInfo.volume || '',
           issue: article.issue || issueInfo.issue || '',
+          paperNumber: article.paperNumber,
           title: article.title,
           authors: article.authors || [],
           url: article.url,

@@ -9,6 +9,7 @@ export interface JournalArticle {
   issue?: string;
   year: string;
   pages?: string;
+  paperNumber?: number;  // Paper number within the issue (번호)
   url: string;           // Article page URL
   pdfUrl?: string;       // PDF download URL
   extractedText?: string; // Extracted PDF content

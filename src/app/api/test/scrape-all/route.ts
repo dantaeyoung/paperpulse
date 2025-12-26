@@ -155,6 +155,7 @@ export async function GET(request: NextRequest) {
             year: a.year,
             volume: a.volume,
             issue: a.issue,
+            paperNumber: a.paperNumber,
             url: a.url,
             pdfUrl: a.pdfUrl,
           }));
