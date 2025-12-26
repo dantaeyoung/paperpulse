@@ -362,13 +362,6 @@ export default function AllPapersPage() {
                 🔄 Re-Compile all
               </button>
             )}
-            <button
-              onClick={fetchPapers}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? 'Loading...' : '↻ Refresh'}
-            </button>
           </div>
         </div>
 
