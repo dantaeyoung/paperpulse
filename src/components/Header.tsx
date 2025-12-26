@@ -22,7 +22,7 @@ export default function Header() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg hover:text-purple-400 transition-colors">
+          <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white hover:text-purple-400 transition-colors">
             <span className="text-purple-500">◉</span>
             <span>paperpulse</span>
           </Link>
