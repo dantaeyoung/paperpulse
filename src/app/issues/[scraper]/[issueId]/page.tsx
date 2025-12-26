@@ -416,7 +416,7 @@ export default function IssuePage({ params }: PageProps) {
         {/* Header */}
         <div className="mb-6">
           <a
-            href="/test/papers"
+            href="/papers"
             className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
           >
             ← Back to All Papers

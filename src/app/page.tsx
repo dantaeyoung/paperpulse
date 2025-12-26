@@ -51,7 +51,7 @@ export default function Home() {
           </div>
 
           <Link
-            href="/test/papers"
+            href="/papers"
             className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-gray-600 transition-colors"
           >
             <div className="text-2xl mb-2">📄</div>

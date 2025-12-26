@@ -235,7 +235,7 @@ npm start
 | URL | Description |
 |-----|-------------|
 | `/` | Home - Journal browser |
-| `/test/papers` | Admin - All papers table |
+| `/papers` | All papers table |
 | `/issues/[scraper]/[issueId]` | Issue view with AI summary |
 | `/u/[token]` | User dashboard |
 | `/u/[token]/keywords` | Manage keywords |
