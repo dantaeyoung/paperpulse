@@ -558,9 +558,20 @@ export default function AllPapersPage() {
                               PDF
                             </a>
                           )}
-                          <span className="text-green-400 text-xs">
-                            ✓ {(paper.fullTextLength / 1000).toFixed(1)}k
-                          </span>
+                          {paper.fullTextLength > 100 ? (
+                            <span className="text-green-400 text-xs">
+                              ✓ {(paper.fullTextLength / 1000).toFixed(1)}k
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => scrapePaper(paper)}
+                              disabled={scrapingIds.has(paper.id)}
+                              className="px-2 py-0.5 bg-yellow-600 rounded hover:bg-yellow-700 disabled:opacity-50 text-xs"
+                              title="Previous scrape failed - click to retry"
+                            >
+                              {scrapingIds.has(paper.id) ? '⏳...' : '🔄 Rescrape'}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <button
@@ -719,7 +730,7 @@ export default function AllPapersPage() {
                     🔗 Original Page
                   </a>
 
-                  {!selectedPaper.isScraped && (
+                  {!selectedPaper.isScraped ? (
                     <button
                       onClick={scrapeFromModal}
                       disabled={scrapingDetail}
@@ -727,7 +738,15 @@ export default function AllPapersPage() {
                     >
                       {scrapingDetail ? '⏳ Scraping...' : '📥 Scrape Full Text'}
                     </button>
-                  )}
+                  ) : selectedPaper.fullTextLength <= 100 ? (
+                    <button
+                      onClick={scrapeFromModal}
+                      disabled={scrapingDetail}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50"
+                    >
+                      {scrapingDetail ? '⏳ Scraping...' : '🔄 Rescrape (previous failed)'}
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* Status */}
