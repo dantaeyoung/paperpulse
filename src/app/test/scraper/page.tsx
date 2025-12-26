@@ -63,6 +63,9 @@ export default function ScraperDashboard() {
   const [scrapingArticleId, setScrapingArticleId] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState<boolean>(false);
 
+  // Client-side cache for instant switching between issues
+  const [articlesCache, setArticlesCache] = useState<Map<string, { articles: UnifiedArticle[], journal: string }>>(new Map());
+
   // Detail modal
   const [selectedPaper, setSelectedPaper] = useState<PaperDetail | null>(null);
 
@@ -102,6 +105,17 @@ export default function ScraperDashboard() {
 
   // Load articles for selected issue (unified view)
   const loadArticles = async (scraperKey: string, issueId: string, refresh = false) => {
+    const cacheKey = `${scraperKey}:${issueId}`;
+
+    // Check client-side cache first (unless refresh requested)
+    if (!refresh && articlesCache.has(cacheKey)) {
+      const cached = articlesCache.get(cacheKey)!;
+      setArticles(cached.articles);
+      setJournalName(cached.journal);
+      setFromCache(true);
+      return;
+    }
+
     setLoading(true);
     setArticles([]);
 
@@ -109,9 +123,15 @@ export default function ScraperDashboard() {
       const url = `/api/test/issue-articles?scraper=${scraperKey}&issue=${issueId}${refresh ? '&refresh=true' : ''}`;
       const res = await fetch(url);
       const data = await res.json();
-      setArticles(data.articles || []);
-      setJournalName(data.journal || '');
+      const newArticles = data.articles || [];
+      const journal = data.journal || '';
+
+      setArticles(newArticles);
+      setJournalName(journal);
       setFromCache(data.fromCache || false);
+
+      // Store in client-side cache
+      setArticlesCache(prev => new Map(prev).set(cacheKey, { articles: newArticles, journal }));
     } catch (err) {
       console.error('Load articles error:', err);
     }
@@ -129,6 +149,14 @@ export default function ScraperDashboard() {
       const data = await res.json();
 
       if (!data.error) {
+        // Clear client cache for this issue so we get fresh scraped status
+        const cacheKey = `${scraperKey}:${issueId}`;
+        setArticlesCache(prev => {
+          const newCache = new Map(prev);
+          newCache.delete(cacheKey);
+          return newCache;
+        });
+
         // Refresh the articles list to show updated status
         await loadArticles(scraperKey, issueId);
         // Also refresh source counts
