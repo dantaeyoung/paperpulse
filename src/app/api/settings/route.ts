@@ -27,31 +27,41 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const supabase = createServerClient();
 
+  console.log('=== SETTINGS SAVE CALLED ===');
+
   try {
     const body = await request.json();
     const { extraction_prompt, synthesis_prompt } = body;
 
+    console.log('Saving extraction_prompt:', extraction_prompt ? `${extraction_prompt.length} chars` : 'undefined');
+    console.log('Saving synthesis_prompt:', synthesis_prompt ? `${synthesis_prompt.length} chars` : 'undefined');
+
     // Upsert each setting
-    const updates = [];
+    const results = [];
 
     if (extraction_prompt !== undefined) {
-      updates.push(
-        supabase
-          .from('app_settings')
-          .upsert({ key: 'extraction_prompt', value: extraction_prompt }, { onConflict: 'key' })
-      );
+      const result = await supabase
+        .from('app_settings')
+        .upsert({ key: 'extraction_prompt', value: extraction_prompt }, { onConflict: 'key' });
+      console.log('Extraction prompt save result:', result.error ? result.error : 'OK');
+      if (result.error) {
+        return NextResponse.json({ error: result.error.message }, { status: 500 });
+      }
+      results.push(result);
     }
 
     if (synthesis_prompt !== undefined) {
-      updates.push(
-        supabase
-          .from('app_settings')
-          .upsert({ key: 'synthesis_prompt', value: synthesis_prompt }, { onConflict: 'key' })
-      );
+      const result = await supabase
+        .from('app_settings')
+        .upsert({ key: 'synthesis_prompt', value: synthesis_prompt }, { onConflict: 'key' });
+      console.log('Synthesis prompt save result:', result.error ? result.error : 'OK');
+      if (result.error) {
+        return NextResponse.json({ error: result.error.message }, { status: 500 });
+      }
+      results.push(result);
     }
 
-    await Promise.all(updates);
-
+    console.log('Settings saved successfully');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Save settings error:', error);
