@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import PaperDetailModal from '@/components/PaperDetailModal';
 
 interface Paper {
   id: string;
   scraperKey: string;
+  issueId: string;
   journal: string;
   year: string;
   volume: string;
@@ -18,10 +20,7 @@ interface Paper {
   hasFullText: boolean;
   fullTextLength: number;
   localPdfUrl: string | null;
-}
-
-interface PaperDetail extends Paper {
-  fullText: string | null;
+  hasExtraction?: boolean;
 }
 
 export default function AllPapersPage() {
@@ -47,9 +46,7 @@ export default function AllPapersPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Paper detail modal
-  const [selectedPaper, setSelectedPaper] = useState<PaperDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [scrapingDetail, setScrapingDetail] = useState(false);
+  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
 
   // Check scrape status on load and poll while running
   const checkScrapeStatus = async () => {
@@ -319,49 +316,9 @@ export default function AllPapersPage() {
     });
   }, [papers, yearFilter, volumeFilter, searchFilter, statusFilter]);
 
-  // Open paper detail modal
-  const openPaperModal = async (paper: Paper) => {
-    setLoadingDetail(true);
-    setSelectedPaper({ ...paper, fullText: null });
-
-    try {
-      const res = await fetch(`/api/test/paper/${paper.id}`);
-      const data = await res.json();
-      if (data.paper) {
-        setSelectedPaper(data.paper);
-      }
-    } catch (err) {
-      console.error('Fetch paper detail error:', err);
-    }
-
-    setLoadingDetail(false);
-  };
-
-  // Scrape paper from modal
-  const scrapeFromModal = async () => {
-    if (!selectedPaper) return;
-
-    setScrapingDetail(true);
-
-    try {
-      const res = await fetch(`/api/test/paper/${selectedPaper.id}/scrape`, { method: 'POST' });
-      const data = await res.json();
-
-      if (!data.error) {
-        // Refresh paper detail
-        const detailRes = await fetch(`/api/test/paper/${selectedPaper.id}`);
-        const detailData = await detailRes.json();
-        if (detailData.paper) {
-          setSelectedPaper(detailData.paper);
-        }
-        // Also refresh the papers list to update status
-        mergePaperUpdates();
-      }
-    } catch (err) {
-      console.error('Scrape error:', err);
-    }
-
-    setScrapingDetail(false);
+  // Handle paper update from modal
+  const handlePaperUpdated = (updatedPaper: Paper) => {
+    mergePaperUpdates();
   };
 
   // Scrape a single paper (supports parallel scraping)
@@ -528,14 +485,22 @@ export default function AllPapersPage() {
                 {filteredPapers.map((paper, idx) => (
                   <tr
                     key={`${paper.id}-${idx}`}
-                    onClick={() => openPaperModal(paper)}
+                    onClick={() => setSelectedPaper(paper)}
                     className={`border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-opacity duration-300 ${
                       isPaperVerified(paper) ? 'opacity-100' : 'opacity-40'
                     }`}
                   >
                     <td className="py-2 px-2 text-gray-400">{paper.year || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.volume || '-'}</td>
-                    <td className="py-2 px-2 text-gray-400">{paper.issue || '-'}</td>
+                    <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
+                      <a
+                        href={`/issues/${paper.scraperKey}/${paper.issueId}`}
+                        className="text-purple-400 hover:text-purple-300 hover:underline"
+                        title="View issue trend analysis"
+                      >
+                        {paper.issue || '-'}
+                      </a>
+                    </td>
                     <td className="py-2 px-2 text-gray-400">{paper.paperNumber || '-'}</td>
                     <td className="py-2 px-2">
                       <span className="hover:text-blue-400">
@@ -548,6 +513,9 @@ export default function AllPapersPage() {
                     <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                       {paper.isScraped ? (
                         <div className="flex items-center justify-center gap-2">
+                          {paper.hasExtraction && (
+                            <span className="text-purple-400" title="AI 분석 완료">🤖</span>
+                          )}
                           {paper.localPdfUrl && (
                             <a
                               href={paper.localPdfUrl}
@@ -654,141 +622,12 @@ export default function AllPapersPage() {
         )}
 
         {/* Paper Detail Modal */}
-        {selectedPaper && (
-          <div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedPaper(null)}
-          >
-            <div
-              className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 pb-4">
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold mb-2">{selectedPaper.title}</h2>
-                    <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                      <span>{selectedPaper.journal}</span>
-                      <span>•</span>
-                      <span>{selectedPaper.year}년</span>
-                      <span>•</span>
-                      <span>제{selectedPaper.volume}권 제{selectedPaper.issue}호</span>
-                      {selectedPaper.paperNumber && (
-                        <>
-                          <span>•</span>
-                          <span>#{selectedPaper.paperNumber}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPaper(null)}
-                    className="text-gray-400 hover:text-white text-2xl leading-none"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                {/* Authors */}
-                <div className="mb-4">
-                  <span className="text-gray-500 text-sm">Authors: </span>
-                  <span className="text-gray-300">{selectedPaper.authors.join(', ') || 'N/A'}</span>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex flex-wrap gap-3 mb-6">
-                  {selectedPaper.localPdfUrl ? (
-                    <a
-                      href={selectedPaper.localPdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-medium"
-                    >
-                      📄 View PDF
-                    </a>
-                  ) : selectedPaper.pdfUrl ? (
-                    <a
-                      href={selectedPaper.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded font-medium"
-                    >
-                      📄 Download PDF (External)
-                    </a>
-                  ) : null}
-
-                  <a
-                    href={selectedPaper.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
-                  >
-                    🔗 Original Page
-                  </a>
-
-                  {!selectedPaper.isScraped ? (
-                    <button
-                      onClick={scrapeFromModal}
-                      disabled={scrapingDetail}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
-                    >
-                      {scrapingDetail ? '⏳ Scraping...' : '📥 Scrape Full Text'}
-                    </button>
-                  ) : selectedPaper.fullTextLength <= 100 ? (
-                    <button
-                      onClick={scrapeFromModal}
-                      disabled={scrapingDetail}
-                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50"
-                    >
-                      {scrapingDetail ? '⏳ Scraping...' : '🔄 Rescrape (previous failed)'}
-                    </button>
-                  ) : null}
-                </div>
-
-                {/* Status */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className={`px-3 py-1 rounded text-sm ${selectedPaper.isScraped ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>
-                    {selectedPaper.isScraped ? '✓ Scraped' : '○ Not Scraped'}
-                  </div>
-                  {selectedPaper.hasFullText && (
-                    <div className="px-3 py-1 rounded text-sm bg-blue-900 text-blue-300">
-                      {(selectedPaper.fullTextLength / 1000).toFixed(1)}k characters
-                    </div>
-                  )}
-                </div>
-
-                {/* Full text */}
-                {loadingDetail ? (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="animate-spin h-6 w-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                    Loading details...
-                  </div>
-                ) : selectedPaper.hasFullText && selectedPaper.fullText ? (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Full Text</h3>
-                    <div className="bg-gray-900 rounded p-4 max-h-[400px] overflow-y-auto">
-                      <pre className="whitespace-pre-wrap text-sm text-gray-300 font-mono">
-                        {selectedPaper.fullText}
-                      </pre>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-900 rounded p-6 text-center text-gray-500">
-                    {selectedPaper.isScraped ? (
-                      <p>Full text was not extracted from this paper.</p>
-                    ) : (
-                      <p>Click "Scrape Full Text" to extract the content from the PDF.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <PaperDetailModal
+          paper={selectedPaper}
+          journal={selectedPaper?.journal}
+          onClose={() => setSelectedPaper(null)}
+          onPaperUpdated={handlePaperUpdated}
+        />
       </div>
     </div>
   );
