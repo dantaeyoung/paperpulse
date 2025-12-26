@@ -24,22 +24,48 @@ export async function GET(
   const supabase = createServerClient();
 
   try {
+    console.log('=== PAPER DETAIL API CALLED ===');
+    console.log('paperId from URL:', paperId, 'type:', typeof paperId);
+
     // First, try to find the paper in the papers table (scraped papers)
     // Query all papers and filter in JS to handle type mismatches
-    const { data: allPapers, error: scrapedError } = await supabase
+    // Note: extraction column may not exist if migration wasn't run
+    let allPapers: Array<Record<string, unknown>> | null = null;
+    let scrapedError: { message: string } | null = null;
+
+    // Try with extraction column first
+    const result1 = await supabase
       .from('papers')
       .select('*, extraction, sources(name, config)');
+
+    if (result1.error?.message?.includes('extraction')) {
+      // Extraction column doesn't exist, query without it
+      console.log('[paper-detail] extraction column missing, querying without it');
+      const result2 = await supabase
+        .from('papers')
+        .select('*, sources(name, config)');
+      allPapers = result2.data;
+      scrapedError = result2.error;
+    } else {
+      allPapers = result1.data;
+      scrapedError = result1.error;
+    }
 
     if (scrapedError) {
       console.error('Paper query error:', scrapedError);
     }
 
+    console.log('Total papers in DB:', allPapers?.length || 0);
+
     // Find by external_id using String() comparison (handles type mismatches)
     const scrapedPaper = allPapers?.find(p => String(p.external_id) === String(paperId)) || null;
 
-    if (!scrapedPaper && allPapers && allPapers.length > 0) {
-      console.log('[paper-detail] Paper not found. Looking for:', paperId);
-      console.log('[paper-detail] Sample external_ids:', allPapers.slice(0, 3).map(p => p.external_id));
+    console.log('Found scrapedPaper:', scrapedPaper ? 'YES' : 'NO');
+    if (scrapedPaper) {
+      console.log('scrapedPaper.external_id:', scrapedPaper.external_id);
+      console.log('scrapedPaper.full_text length:', scrapedPaper.full_text?.length || 0);
+    } else if (allPapers && allPapers.length > 0) {
+      console.log('Sample external_ids from DB:', allPapers.slice(0, 5).map(p => `"${p.external_id}" (${typeof p.external_id})`));
     }
 
     // Also search in issue_cache for the article metadata
