@@ -51,21 +51,39 @@ export async function GET(request: NextRequest) {
     // Get all scraped papers to check status
     const { data: scrapedPapers } = await supabase
       .from('papers')
-      .select('external_id, source_id, full_text');
+      .select('id, external_id, source_id, full_text');
 
     // Build a map of scraped papers by external_id
-    const scrapedMap = new Map<string, { hasFullText: boolean; fullTextLength: number }>();
+    const scrapedMap = new Map<string, { dbId: string; hasFullText: boolean; fullTextLength: number }>();
     for (const paper of scrapedPapers || []) {
       scrapedMap.set(paper.external_id, {
+        dbId: paper.id,
         hasFullText: !!paper.full_text,
         fullTextLength: paper.full_text?.length || 0,
       });
+    }
+
+    // Get all issue summaries to find papers with AI extractions
+    const { data: issueSummaries } = await supabase
+      .from('issue_summaries')
+      .select('extractions');
+
+    // Build a set of paper IDs (database UUIDs) that have extractions
+    const extractedPaperIds = new Set<string>();
+    for (const summary of issueSummaries || []) {
+      const extractions = (summary.extractions as Array<{ paper_id: string }>) || [];
+      for (const extraction of extractions) {
+        if (extraction.paper_id) {
+          extractedPaperIds.add(extraction.paper_id);
+        }
+      }
     }
 
     // Flatten all articles from all issues into one list
     const allPapers: {
       id: string;
       scraperKey: string;
+      issueId: string;
       journal: string;
       year: string;
       volume: string;
@@ -79,6 +97,7 @@ export async function GET(request: NextRequest) {
       hasFullText: boolean;
       fullTextLength: number;
       localPdfUrl: string | null;
+      hasExtraction: boolean;
     }[] = [];
 
     for (const cache of cachedIssues as IssueCache[]) {
@@ -100,6 +119,7 @@ export async function GET(request: NextRequest) {
         allPapers.push({
           id: article.id,
           scraperKey: cache.scraper_key,
+          issueId: cache.issue_id,
           journal: cache.journal_name || '',
           year: article.year || issueInfo.year || '',
           volume: article.volume || issueInfo.volume || '',
@@ -113,6 +133,7 @@ export async function GET(request: NextRequest) {
           hasFullText: scraped?.hasFullText || false,
           fullTextLength: scraped?.fullTextLength || 0,
           localPdfUrl,
+          hasExtraction: scraped?.dbId ? extractedPaperIds.has(scraped.dbId) : false,
         });
       }
     }

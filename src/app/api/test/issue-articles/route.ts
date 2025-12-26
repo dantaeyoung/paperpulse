@@ -17,6 +17,12 @@ interface CachedArticle {
   pdfUrl: string;
 }
 
+interface IssueInfo {
+  year?: string;
+  volume?: string;
+  issue?: string;
+}
+
 // Get all articles for an issue, merged with database status
 export async function GET(request: NextRequest) {
   const scraperKey = request.nextUrl.searchParams.get('scraper');
@@ -55,12 +61,20 @@ export async function GET(request: NextRequest) {
     if (!refresh) {
       const { data: cached } = await supabase
         .from('issue_cache')
-        .select('articles, cached_at')
+        .select('articles, issue_info, cached_at')
         .eq('scraper_key', scraperKey)
         .eq('issue_id', issueId)
         .single();
 
       if (cached?.articles) {
+        // Use cached issue_info if available
+        const cachedIssueInfo = cached.issue_info as IssueInfo | null;
+        if (cachedIssueInfo) {
+          issueInfo.year = cachedIssueInfo.year || issueInfo.year;
+          issueInfo.volume = cachedIssueInfo.volume || issueInfo.volume;
+          issueInfo.issue = cachedIssueInfo.issue || issueInfo.issue;
+        }
+
         websiteArticles = (cached.articles as CachedArticle[]).map(a => ({
           id: a.id,
           title: a.title,
@@ -83,7 +97,15 @@ export async function GET(request: NextRequest) {
         onProgress: () => {},
       });
 
-      // Fill in issue info for articles
+      // Extract issueInfo from first article (articles have correct info from scraper)
+      if (websiteArticles.length > 0) {
+        const firstArticle = websiteArticles[0];
+        if (firstArticle.year) issueInfo.year = firstArticle.year;
+        if (firstArticle.volume) issueInfo.volume = firstArticle.volume;
+        if (firstArticle.issue) issueInfo.issue = firstArticle.issue;
+      }
+
+      // Fill in issue info for any articles missing it
       for (const article of websiteArticles) {
         if (!article.year) article.year = issueInfo.year;
         if (!article.volume) article.volume = issueInfo.volume;
@@ -126,6 +148,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     // Get existing papers from database for this issue
+    // Match by external_id (article.id) since volume/issue matching can be unreliable
     let dbPapers: Record<string, {
       id: string;
       hasFullText: boolean;
@@ -133,20 +156,24 @@ export async function GET(request: NextRequest) {
     }> = {};
 
     if (source) {
-      const { data: papers } = await supabase
-        .from('papers')
-        .select('id, external_id, full_text')
-        .eq('source_id', source.id)
-        .eq('volume', issueInfo.volume)
-        .eq('issue', issueInfo.issue);
+      // Get all article IDs from the cache to query
+      const articleIds = websiteArticles.map(a => a.id);
 
-      if (papers) {
-        for (const paper of papers) {
-          dbPapers[paper.external_id] = {
-            id: paper.id,
-            hasFullText: !!paper.full_text,
-            fullTextLength: paper.full_text?.length || 0,
-          };
+      if (articleIds.length > 0) {
+        const { data: papers } = await supabase
+          .from('papers')
+          .select('id, external_id, full_text')
+          .eq('source_id', source.id)
+          .in('external_id', articleIds);
+
+        if (papers) {
+          for (const paper of papers) {
+            dbPapers[paper.external_id] = {
+              id: paper.id,
+              hasFullText: !!paper.full_text,
+              fullTextLength: paper.full_text?.length || 0,
+            };
+          }
         }
       }
     }
@@ -185,6 +212,37 @@ export async function GET(request: NextRequest) {
 
     const scrapedCount = unifiedArticles.filter(a => a.isScraped).length;
 
+    // Find adjacent issues (prev/next) from cache
+    const { data: allIssues } = await supabase
+      .from('issue_cache')
+      .select('issue_id, issue_info')
+      .eq('scraper_key', scraperKey)
+      .order('issue_id', { ascending: false });
+
+    let prevIssue: { id: string; info: IssueInfo } | null = null;
+    let nextIssue: { id: string; info: IssueInfo } | null = null;
+
+    if (allIssues && allIssues.length > 0) {
+      // Sort by issue_id as numbers (descending = newest first)
+      const sortedIssues = allIssues.sort((a, b) =>
+        parseInt(b.issue_id, 10) - parseInt(a.issue_id, 10)
+      );
+
+      const currentIndex = sortedIssues.findIndex(i => i.issue_id === issueId);
+      if (currentIndex !== -1) {
+        // Next = newer issue (lower index in descending array)
+        if (currentIndex > 0) {
+          const next = sortedIssues[currentIndex - 1];
+          nextIssue = { id: next.issue_id, info: next.issue_info as IssueInfo };
+        }
+        // Prev = older issue (higher index in descending array)
+        if (currentIndex < sortedIssues.length - 1) {
+          const prev = sortedIssues[currentIndex + 1];
+          prevIssue = { id: prev.issue_id, info: prev.issue_info as IssueInfo };
+        }
+      }
+    }
+
     return NextResponse.json({
       scraper: scraperKey,
       journal: scraper.name,
@@ -194,6 +252,8 @@ export async function GET(request: NextRequest) {
       scrapedCount,
       fromCache,
       articles: unifiedArticles,
+      prevIssue,
+      nextIssue,
     });
 
   } catch (error) {

@@ -65,6 +65,25 @@ export async function GET(
       }
     }
 
+    // Look for AI extraction from issue_summaries
+    let extraction = null;
+    if (scrapedPaper?.id) {
+      const { data: summaries } = await supabase
+        .from('issue_summaries')
+        .select('extractions')
+        .eq('scraper_key', scraperKey);
+
+      // Find the extraction for this paper by database ID
+      for (const summary of summaries || []) {
+        const extractions = summary.extractions as Array<{ paper_id: string }> || [];
+        const found = extractions.find(e => e.paper_id === scrapedPaper.id);
+        if (found) {
+          extraction = found;
+          break;
+        }
+      }
+    }
+
     // Build the response
     const paper = {
       id: paperId,
@@ -82,6 +101,7 @@ export async function GET(
       fullTextLength: scrapedPaper?.full_text?.length || 0,
       fullText: scrapedPaper?.full_text || null,
       localPdfUrl,
+      extraction,
     };
 
     return NextResponse.json({ paper });
