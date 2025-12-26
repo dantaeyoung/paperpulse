@@ -2,6 +2,12 @@
 
 LLM-powered Korean academic journal summarizer with weekly email digests.
 
+(Vibe-engineered!)
+
+```diff
+! everything below this was written by an AI
+```
+
 ## Features
 
 - Scrapes Korean academic journals and extracts full text from PDFs
