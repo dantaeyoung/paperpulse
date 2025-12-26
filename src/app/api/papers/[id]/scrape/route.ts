@@ -40,7 +40,8 @@ export async function POST(
 
     for (const cache of cachedIssues || []) {
       const articles = cache.articles as CachedArticle[] || [];
-      const found = articles.find(a => a.id === paperId);
+      // Use String() comparison to handle potential type mismatches (string vs number)
+      const found = articles.find(a => String(a.id) === String(paperId));
       if (found) {
         cachedArticle = found;
         scraperKey = cache.scraper_key;
@@ -52,6 +53,15 @@ export async function POST(
     }
 
     if (!cachedArticle) {
+      // Log debug info to help diagnose
+      const allArticleIds = (cachedIssues || []).flatMap(c =>
+        (c.articles as CachedArticle[] || []).map(a => ({ id: a.id, type: typeof a.id }))
+      ).slice(0, 10);
+      console.error('[scrape] Paper not found in cache:', {
+        paperId,
+        paperIdType: typeof paperId,
+        sampleArticleIds: allArticleIds
+      });
       return NextResponse.json({ error: 'Paper not found in cache' }, { status: 404 });
     }
 

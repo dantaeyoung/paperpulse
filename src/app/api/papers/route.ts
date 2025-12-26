@@ -54,9 +54,10 @@ export async function GET(request: NextRequest) {
       .select('id, external_id, source_id, full_text');
 
     // Build a map of scraped papers by external_id
+    // Use String() to ensure consistent key types
     const scrapedMap = new Map<string, { dbId: string; hasFullText: boolean; fullTextLength: number }>();
     for (const paper of scrapedPapers || []) {
-      scrapedMap.set(paper.external_id, {
+      scrapedMap.set(String(paper.external_id), {
         dbId: paper.id,
         hasFullText: !!paper.full_text,
         fullTextLength: paper.full_text?.length || 0,
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       const issueInfo = cache.issue_info || {};
 
       for (const article of articles) {
-        const scraped = scrapedMap.get(article.id);
+        const scraped = scrapedMap.get(String(article.id));
         let localPdfUrl: string | null = null;
 
         // Check if PDF exists locally

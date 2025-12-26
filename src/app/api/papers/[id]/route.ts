@@ -47,9 +47,10 @@ export async function GET(
     let journalName = '';
 
     // Find the article in cached issues
+    // Use String() comparison to handle potential type mismatches (string vs number)
     for (const cache of cachedIssues || []) {
       const articles = cache.articles as CachedArticle[] || [];
-      const found = articles.find(a => a.id === paperId);
+      const found = articles.find(a => String(a.id) === String(paperId));
       if (found) {
         cachedArticle = found;
         scraperKey = cache.scraper_key;
