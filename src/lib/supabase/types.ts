@@ -208,6 +208,58 @@ export interface Database {
           error_message?: string | null;
         };
       };
+      issue_summaries: {
+        Row: {
+          id: string;
+          scraper_key: string;
+          issue_id: string;
+          summary_content: string;
+          extractions: Record<string, unknown>[] | null;
+          paper_count: number;
+          custom_prompt: string | null;
+          user_id: string | null;
+          field_context: string | null;
+          model_extraction: string;
+          model_synthesis: string;
+          tokens_used_extraction: number | null;
+          tokens_used_synthesis: number | null;
+          cost_estimate: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          scraper_key: string;
+          issue_id: string;
+          summary_content: string;
+          extractions?: Record<string, unknown>[] | null;
+          paper_count: number;
+          custom_prompt?: string | null;
+          user_id?: string | null;
+          field_context?: string | null;
+          model_extraction?: string;
+          model_synthesis?: string;
+          tokens_used_extraction?: number | null;
+          tokens_used_synthesis?: number | null;
+          cost_estimate?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          scraper_key?: string;
+          issue_id?: string;
+          summary_content?: string;
+          extractions?: Record<string, unknown>[] | null;
+          paper_count?: number;
+          custom_prompt?: string | null;
+          user_id?: string | null;
+          field_context?: string | null;
+          model_extraction?: string;
+          model_synthesis?: string;
+          tokens_used_extraction?: number | null;
+          tokens_used_synthesis?: number | null;
+          cost_estimate?: number | null;
+        };
+      };
     };
   };
 }
@@ -219,3 +271,4 @@ export type Source = Database['public']['Tables']['sources']['Row'];
 export type Paper = Database['public']['Tables']['papers']['Row'];
 export type Summary = Database['public']['Tables']['summaries']['Row'];
 export type EmailLog = Database['public']['Tables']['email_logs']['Row'];
+export type IssueSummary = Database['public']['Tables']['issue_summaries']['Row'];
