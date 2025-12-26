@@ -29,27 +29,10 @@ export async function GET(
 
     // First, try to find the paper in the papers table (scraped papers)
     // Query all papers and filter in JS to handle type mismatches
-    // Note: extraction column may not exist if migration wasn't run
-    let allPapers: Array<Record<string, unknown>> | null = null;
-    let scrapedError: { message: string } | null = null;
-
-    // Try with extraction column first
-    const result1 = await supabase
+    // Use simple query without extraction column (may not exist if migration wasn't run)
+    const { data: allPapers, error: scrapedError } = await supabase
       .from('papers')
-      .select('*, extraction, sources(name, config)');
-
-    if (result1.error?.message?.includes('extraction')) {
-      // Extraction column doesn't exist, query without it
-      console.log('[paper-detail] extraction column missing, querying without it');
-      const result2 = await supabase
-        .from('papers')
-        .select('*, sources(name, config)');
-      allPapers = result2.data;
-      scrapedError = result2.error;
-    } else {
-      allPapers = result1.data;
-      scrapedError = result1.error;
-    }
+      .select('id, external_id, source_id, title, authors, full_text, url, journal_name, volume, issue, published_at');
 
     if (scrapedError) {
       console.error('Paper query error:', scrapedError);
@@ -103,11 +86,11 @@ export async function GET(
       }
     }
 
-    // Look for AI extraction - first check paper's own extraction field
-    let extraction = scrapedPaper?.extraction || null;
+    // Look for AI extraction from issue_summaries
+    // (extraction column on papers table may not exist)
+    let extraction = null;
 
-    // Fall back to issue_summaries if no direct extraction
-    if (!extraction && scrapedPaper?.id) {
+    if (scrapedPaper?.id) {
       const { data: summaries } = await supabase
         .from('issue_summaries')
         .select('extractions')
@@ -127,7 +110,7 @@ export async function GET(
     // Build the response
     const paper = {
       id: paperId,
-      scraperKey: scraperKey || (scrapedPaper?.sources as { config?: { scraper?: string } })?.config?.scraper || '',
+      scraperKey: scraperKey || '',
       journal: journalName || scrapedPaper?.journal_name || '',
       year: cachedArticle?.year || (scrapedPaper?.published_at ? new Date(scrapedPaper.published_at).getFullYear().toString() : ''),
       volume: cachedArticle?.volume || scrapedPaper?.volume || '',
