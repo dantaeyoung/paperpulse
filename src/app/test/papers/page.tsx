@@ -32,10 +32,36 @@ export default function AllPapersPage() {
 
   // Scraping
   const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [bulkScraping, setBulkScraping] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<string>('');
 
   useEffect(() => {
     fetchPapers();
   }, []);
+
+  // Scrape all issues to populate the cache
+  const scrapeAllIssues = async () => {
+    setBulkScraping(true);
+    setBulkProgress('Starting bulk scrape...');
+
+    try {
+      const res = await fetch('/api/test/scrape-all?scraper=counselors&start=2000');
+      const data = await res.json();
+
+      if (data.success) {
+        setBulkProgress(`Done! ${data.totalIssues} issues, ${data.totalArticles} papers cached.`);
+        // Refresh the papers list
+        await fetchPapers();
+      } else {
+        setBulkProgress(`Error: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Bulk scrape error:', err);
+      setBulkProgress('Error: Failed to scrape');
+    }
+
+    setBulkScraping(false);
+  };
 
   const fetchPapers = async () => {
     setLoading(true);
@@ -115,13 +141,26 @@ export default function AllPapersPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">📚 All Papers</h1>
-          <button
-            onClick={fetchPapers}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : '🔄 Refresh'}
-          </button>
+          <div className="flex items-center gap-3">
+            {bulkProgress && (
+              <span className="text-sm text-gray-400">{bulkProgress}</span>
+            )}
+            <button
+              onClick={scrapeAllIssues}
+              disabled={bulkScraping || loading}
+              className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+              title="Fetch all issues from 2000-present and cache them"
+            >
+              {bulkScraping ? '⏳ Scraping...' : '📥 Scrape All Issues'}
+            </button>
+            <button
+              onClick={fetchPapers}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
