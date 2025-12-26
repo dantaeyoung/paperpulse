@@ -3,26 +3,74 @@ import { createServerClient } from '@/lib/supabase/client';
 import { getScraper } from '@/lib/scrapers/journal-base';
 import '@/lib/scrapers/counselors';
 
-// Scrape all issues for all years and cache them
+const JOB_ID = 'bulk-scrape';
+
+// Helper to update status
+async function updateStatus(
+  supabase: ReturnType<typeof createServerClient>,
+  status: string,
+  progress: string,
+  result?: object
+) {
+  await supabase
+    .from('scrape_status')
+    .upsert({
+      id: JOB_ID,
+      status,
+      progress,
+      ...(status === 'running' ? { started_at: new Date().toISOString() } : {}),
+      ...(status === 'completed' || status === 'error' ? { completed_at: new Date().toISOString() } : {}),
+      ...(result ? { result } : {}),
+    }, { onConflict: 'id' });
+}
+
+// GET: Check status or start scraping
 export async function GET(request: NextRequest) {
   const scraperKey = request.nextUrl.searchParams.get('scraper') || 'counselors';
+  const statusOnly = request.nextUrl.searchParams.get('status') === 'true';
   const startYear = parseInt(request.nextUrl.searchParams.get('start') || '2000', 10);
   const endYear = parseInt(request.nextUrl.searchParams.get('end') || String(new Date().getFullYear()), 10);
+
+  const supabase = createServerClient();
+
+  // If just checking status, return current status
+  if (statusOnly) {
+    const { data: status } = await supabase
+      .from('scrape_status')
+      .select('*')
+      .eq('id', JOB_ID)
+      .single();
+
+    return NextResponse.json({
+      status: status?.status || 'idle',
+      progress: status?.progress || '',
+      startedAt: status?.started_at,
+      completedAt: status?.completed_at,
+      result: status?.result,
+    });
+  }
+
+  // Check if already running
+  const { data: currentStatus } = await supabase
+    .from('scrape_status')
+    .select('status')
+    .eq('id', JOB_ID)
+    .single();
+
+  if (currentStatus?.status === 'running') {
+    return NextResponse.json({
+      error: 'Scrape already in progress',
+      status: 'running',
+    }, { status: 409 });
+  }
 
   const scraper = getScraper(scraperKey);
   if (!scraper) {
     return NextResponse.json({ error: `Scraper '${scraperKey}' not found` }, { status: 404 });
   }
 
-  const supabase = createServerClient();
-  const logs: string[] = [];
-  const log = (msg: string) => {
-    logs.push(msg);
-    console.log(`[scrape-all] ${msg}`);
-  };
-
   try {
-    log(`Starting bulk scrape for ${scraperKey} from ${startYear} to ${endYear}`);
+    await updateStatus(supabase, 'running', `Starting bulk scrape for ${scraperKey}...`);
 
     let totalIssues = 0;
     let totalArticles = 0;
@@ -31,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     // Process each year
     for (let year = endYear; year >= startYear; year--) {
-      log(`Processing year ${year}...`);
+      await updateStatus(supabase, 'running', `Processing year ${year}...`);
 
       // Check if year is already cached
       const { data: yearCache } = await supabase
@@ -44,11 +92,9 @@ export async function GET(request: NextRequest) {
       let issues;
       if (yearCache?.issues) {
         issues = yearCache.issues;
-        log(`  Year ${year}: ${issues.length} issues (from cache)`);
       } else {
         // Fetch from website
         issues = await scraper.getIssues(year, year);
-        log(`  Year ${year}: ${issues.length} issues (fetched)`);
 
         // Cache the year
         await supabase
@@ -68,7 +114,14 @@ export async function GET(request: NextRequest) {
       totalIssues += issues.length;
 
       // Process each issue in the year
-      for (const issue of issues) {
+      for (let i = 0; i < issues.length; i++) {
+        const issue = issues[i];
+        await updateStatus(
+          supabase,
+          'running',
+          `Year ${year}: Issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})`
+        );
+
         // Check if issue is already cached
         const { data: issueCache } = await supabase
           .from('issue_cache')
@@ -80,7 +133,6 @@ export async function GET(request: NextRequest) {
         if (issueCache?.articles) {
           const articleCount = (issueCache.articles as unknown[]).length;
           totalArticles += articleCount;
-          log(`    Issue ${issue.id} (Vol.${issue.volume} No.${issue.issue}): ${articleCount} articles (from cache)`);
         } else {
           // Fetch articles from website
           const articles = await scraper.collectIssue(issue.id, {
@@ -122,7 +174,6 @@ export async function GET(request: NextRequest) {
 
           totalArticles += articles.length;
           cachedIssues++;
-          log(`    Issue ${issue.id} (Vol.${issue.volume} No.${issue.issue}): ${articles.length} articles (fetched)`);
 
           // Small delay to be nice to the server
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -130,29 +181,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    log(`Done! ${totalIssues} issues, ${totalArticles} articles total`);
-    log(`Newly cached: ${cachedYears} years, ${cachedIssues} issues`);
-
-    return NextResponse.json({
-      success: true,
+    const result = {
       scraper: scraperKey,
       startYear,
       endYear,
       totalIssues,
       totalArticles,
-      newlyCached: {
-        years: cachedYears,
-        issues: cachedIssues,
-      },
-      logs,
-    });
+      newlyCached: { years: cachedYears, issues: cachedIssues },
+    };
+
+    await updateStatus(
+      supabase,
+      'completed',
+      `Done! ${totalIssues} issues, ${totalArticles} articles`,
+      result
+    );
+
+    return NextResponse.json({ success: true, ...result });
 
   } catch (error) {
     console.error('Bulk scrape error:', error);
+    await updateStatus(
+      supabase,
+      'error',
+      `Error: ${error instanceof Error ? error.message : 'Unknown'}`
+    );
     return NextResponse.json({
       error: 'Bulk scrape failed',
       details: error instanceof Error ? error.message : 'Unknown',
-      logs,
     }, { status: 500 });
   }
 }

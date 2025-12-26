@@ -25,3 +25,13 @@ CREATE TABLE year_issues_cache (
 );
 
 CREATE INDEX idx_year_issues_cache_lookup ON year_issues_cache(scraper_key, year);
+
+-- Track scraping job status for UI progress
+CREATE TABLE scrape_status (
+  id VARCHAR(50) PRIMARY KEY,  -- e.g., 'bulk-scrape-counselors'
+  status VARCHAR(20) NOT NULL DEFAULT 'idle',  -- idle, running, completed, error
+  progress TEXT,  -- current progress message
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  result JSONB  -- final stats
+);

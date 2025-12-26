@@ -37,9 +37,51 @@ export default function AllPapersPage() {
   const [bulkScraping, setBulkScraping] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<string>('');
 
+  // Check scrape status on load and poll while running
+  const checkScrapeStatus = async () => {
+    try {
+      const res = await fetch('/api/test/scrape-all?status=true');
+      const data = await res.json();
+
+      if (data.status === 'running') {
+        setBulkScraping(true);
+        setBulkProgress(data.progress || 'Scraping...');
+        return true; // Still running
+      } else {
+        setBulkScraping(false);
+        if (data.status === 'completed' && data.result) {
+          setBulkProgress(`Done! ${data.result.totalIssues} issues, ${data.result.totalArticles} papers`);
+        } else if (data.status === 'error') {
+          setBulkProgress(data.progress || 'Error occurred');
+        }
+        return false; // Not running
+      }
+    } catch (err) {
+      console.error('Status check error:', err);
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchPapers();
+    checkScrapeStatus();
   }, []);
+
+  // Poll for status while scraping
+  useEffect(() => {
+    if (!bulkScraping) return;
+
+    const interval = setInterval(async () => {
+      const stillRunning = await checkScrapeStatus();
+      if (!stillRunning) {
+        clearInterval(interval);
+        // Refresh papers when done
+        fetchPapers();
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [bulkScraping]);
 
   // Scrape all issues to populate the cache
   const scrapeAllIssues = async () => {
@@ -47,22 +89,28 @@ export default function AllPapersPage() {
     setBulkProgress('Starting bulk scrape...');
 
     try {
+      // This will start the scrape - we'll poll for status separately
       const res = await fetch('/api/test/scrape-all?scraper=counselors&start=2000');
       const data = await res.json();
 
+      if (data.status === 'running') {
+        // Already running (from another tab maybe) - just poll
+        return;
+      }
+
       if (data.success) {
         setBulkProgress(`Done! ${data.totalIssues} issues, ${data.totalArticles} papers cached.`);
-        // Refresh the papers list
         await fetchPapers();
-      } else {
-        setBulkProgress(`Error: ${data.error || 'Unknown error'}`);
+        setBulkScraping(false);
+      } else if (data.error) {
+        setBulkProgress(`Error: ${data.error}`);
+        setBulkScraping(false);
       }
     } catch (err) {
       console.error('Bulk scrape error:', err);
       setBulkProgress('Error: Failed to scrape');
+      setBulkScraping(false);
     }
-
-    setBulkScraping(false);
   };
 
   const fetchPapers = async () => {
