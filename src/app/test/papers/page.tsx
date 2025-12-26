@@ -35,8 +35,8 @@ export default function AllPapersPage() {
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all'); // all, scraped, unscraped
 
-  // Scraping
-  const [scrapingId, setScrapingId] = useState<string | null>(null);
+  // Scraping - use Set for parallel scraping
+  const [scrapingIds, setScrapingIds] = useState<Set<string>>(new Set());
   const [bulkScraping, setBulkScraping] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -364,32 +364,29 @@ export default function AllPapersPage() {
     setScrapingDetail(false);
   };
 
-  // Scrape a single paper
+  // Scrape a single paper (supports parallel scraping)
   const scrapePaper = async (paper: Paper) => {
-    setScrapingId(paper.id);
+    // Add to scraping set
+    setScrapingIds(prev => new Set(prev).add(paper.id));
 
     try {
-      // We need to figure out the issue ID from the paper's volume/issue
-      // For counselors scraper, we can derive catcode from year
-      const year = parseInt(paper.year);
-      const issueNum = parseInt(paper.issue);
-      // catcode = (year - 2000) * 6 + issueNum + some offset... this is complex
-      // Let's just use the scrape-journal endpoint with article ID directly
-
-      const res = await fetch(
-        `/api/test/scrape-journal?scraper=${paper.scraperKey}&issue=${paper.id.split('-')[0] || paper.id}&article=${paper.id}&extract=true&save=true`
-      );
+      const res = await fetch(`/api/test/paper/${paper.id}/scrape`, { method: 'POST' });
       const data = await res.json();
 
       if (!data.error) {
-        // Refresh the papers list
-        await fetchPapers();
+        // Merge updates to reflect new scrape status
+        mergePaperUpdates();
       }
     } catch (err) {
       console.error('Scrape error:', err);
     }
 
-    setScrapingId(null);
+    // Remove from scraping set
+    setScrapingIds(prev => {
+      const next = new Set(prev);
+      next.delete(paper.id);
+      return next;
+    });
   };
 
   return (
@@ -568,10 +565,10 @@ export default function AllPapersPage() {
                       ) : (
                         <button
                           onClick={() => scrapePaper(paper)}
-                          disabled={scrapingId === paper.id}
+                          disabled={scrapingIds.has(paper.id)}
                           className="px-2 py-0.5 bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 text-xs"
                         >
-                          {scrapingId === paper.id ? '⏳...' : '📥 Scrape'}
+                          {scrapingIds.has(paper.id) ? '⏳...' : '📥 Scrape'}
                         </button>
                       )}
                     </td>
