@@ -1,65 +1,106 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+interface JournalInfo {
+  scraperKey: string;
+  name: string;
+  latestIssue?: {
+    id: string;
+    volume: string;
+    issue: string;
+    year: string;
+  };
+  paperCount: number;
+}
 
 export default function Home() {
+  const [journals, setJournals] = useState<JournalInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchJournals() {
+      try {
+        const res = await fetch('/api/journals');
+        if (res.ok) {
+          const data = await res.json();
+          setJournals(data.journals || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch journals:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchJournals();
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      <div className="max-w-3xl mx-auto px-4 py-12">
+        {/* Header */}
+        <h1 className="text-2xl font-bold mb-8">논문 다이제스트</h1>
+
+        {/* Navigation Cards */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
+            <div className="text-2xl mb-2">📚</div>
+            <h2 className="font-semibold mb-1">학술지</h2>
+            <p className="text-sm text-gray-400">호별 논문 탐색</p>
+          </div>
+
+          <Link
+            href="/test/papers"
+            className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-gray-600 transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="text-2xl mb-2">📄</div>
+            <h2 className="font-semibold mb-1">전체 논문</h2>
+            <p className="text-sm text-gray-400">수집된 모든 논문</p>
+          </Link>
         </div>
-      </main>
+
+        {/* Journal List */}
+        <div className="bg-gray-900 rounded-lg border border-gray-800">
+          <div className="p-4 border-b border-gray-800">
+            <h2 className="font-semibold">등록된 학술지</h2>
+          </div>
+
+          {loading ? (
+            <div className="p-4 text-gray-500">로딩 중...</div>
+          ) : journals.length === 0 ? (
+            <div className="p-4 text-gray-500">등록된 학술지가 없습니다</div>
+          ) : (
+            <div className="divide-y divide-gray-800">
+              {journals.map((journal) => (
+                <div key={journal.scraperKey} className="p-4 flex justify-between items-center">
+                  <div>
+                    <div className="font-medium">{journal.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {journal.paperCount > 0 && `${journal.paperCount}편 수집`}
+                    </div>
+                  </div>
+                  {journal.latestIssue ? (
+                    <Link
+                      href={`/issues/${journal.scraperKey}/${journal.latestIssue.id}`}
+                      className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors"
+                    >
+                      {journal.latestIssue.volume}권 {journal.latestIssue.issue}호
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-gray-600">캐시된 호 없음</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-gray-600">
+          구독자는 이메일의 링크로 대시보드에 접속하세요
+        </div>
+      </div>
     </div>
   );
 }
