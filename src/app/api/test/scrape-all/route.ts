@@ -115,6 +115,23 @@ export async function GET(request: NextRequest) {
 
       // Process each issue in the year
       for (let i = 0; i < issues.length; i++) {
+        // Check if cancelled
+        const { data: statusCheck } = await supabase
+          .from('scrape_status')
+          .select('status')
+          .eq('id', JOB_ID)
+          .single();
+
+        if (statusCheck?.status === 'cancelled') {
+          console.log('[scrape-all] Cancelled by user');
+          return NextResponse.json({
+            success: false,
+            cancelled: true,
+            message: 'Cancelled by user',
+            progress: { totalIssues, totalArticles, cachedYears, cachedIssues }
+          });
+        }
+
         const issue = issues[i];
         await updateStatus(
           supabase,
@@ -122,63 +139,50 @@ export async function GET(request: NextRequest) {
           `Year ${year}: Issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})`
         );
 
-        // Check if issue is already cached
-        const { data: issueCache } = await supabase
-          .from('issue_cache')
-          .select('articles')
-          .eq('scraper_key', scraperKey)
-          .eq('issue_id', issue.id)
-          .single();
+        // Always fetch fresh from website (this is a RE-compile)
+        const articles = await scraper.collectIssue(issue.id, {
+          extractText: false,
+          onProgress: () => {},
+        });
 
-        if (issueCache?.articles) {
-          const articleCount = (issueCache.articles as unknown[]).length;
-          totalArticles += articleCount;
-        } else {
-          // Fetch articles from website
-          const articles = await scraper.collectIssue(issue.id, {
-            extractText: false,
-            onProgress: () => {},
+        // Fill in issue info
+        for (const article of articles) {
+          if (!article.year) article.year = issue.year;
+          if (!article.volume) article.volume = issue.volume;
+          if (!article.issue) article.issue = issue.issue;
+        }
+
+        // Cache the articles (upsert will update existing)
+        const articlesToCache = articles.map(a => ({
+          id: a.id,
+          title: a.title,
+          authors: a.authors,
+          year: a.year,
+          volume: a.volume,
+          issue: a.issue,
+          paperNumber: a.paperNumber,
+          url: a.url,
+          pdfUrl: a.pdfUrl,
+        }));
+
+        await supabase
+          .from('issue_cache')
+          .upsert({
+            scraper_key: scraperKey,
+            issue_id: issue.id,
+            journal_name: scraper.name,
+            issue_info: { year: issue.year, volume: issue.volume, issue: issue.issue },
+            articles: articlesToCache,
+            cached_at: new Date().toISOString(),
+          }, {
+            onConflict: 'scraper_key,issue_id',
           });
 
-          // Fill in issue info
-          for (const article of articles) {
-            if (!article.year) article.year = issue.year;
-            if (!article.volume) article.volume = issue.volume;
-            if (!article.issue) article.issue = issue.issue;
-          }
+        totalArticles += articles.length;
+        cachedIssues++;
 
-          // Cache the articles
-          const articlesToCache = articles.map(a => ({
-            id: a.id,
-            title: a.title,
-            authors: a.authors,
-            year: a.year,
-            volume: a.volume,
-            issue: a.issue,
-            paperNumber: a.paperNumber,
-            url: a.url,
-            pdfUrl: a.pdfUrl,
-          }));
-
-          await supabase
-            .from('issue_cache')
-            .upsert({
-              scraper_key: scraperKey,
-              issue_id: issue.id,
-              journal_name: scraper.name,
-              issue_info: { year: issue.year, volume: issue.volume, issue: issue.issue },
-              articles: articlesToCache,
-              cached_at: new Date().toISOString(),
-            }, {
-              onConflict: 'scraper_key,issue_id',
-            });
-
-          totalArticles += articles.length;
-          cachedIssues++;
-
-          // Small delay to be nice to the server
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
+        // Small delay to be nice to the server
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 

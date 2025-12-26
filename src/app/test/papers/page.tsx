@@ -37,6 +37,12 @@ export default function AllPapersPage() {
   const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [bulkScraping, setBulkScraping] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<string>('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [currentProcessingYear, setCurrentProcessingYear] = useState<number | null>(null);
+  const [currentProcessingIssue, setCurrentProcessingIssue] = useState<number | null>(null);
+  const [lastFetchedIssueKey, setLastFetchedIssueKey] = useState<string | null>(null);
+  const [checkingNew, setCheckingNew] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Check scrape status on load and poll while running
   const checkScrapeStatus = async () => {
@@ -46,10 +52,22 @@ export default function AllPapersPage() {
 
       if (data.status === 'running') {
         setBulkScraping(true);
-        setBulkProgress(data.progress || 'Scraping...');
+        setBulkProgress(data.progress || 'Compiling...');
+
+        // Parse year and issue from progress message like "Year 2024: Issue 3/6 (Vol.25 No.3)"
+        const yearMatch = data.progress?.match(/Year (\d{4})/);
+        const issueMatch = data.progress?.match(/No\.(\d+)/);
+        if (yearMatch) {
+          setCurrentProcessingYear(parseInt(yearMatch[1], 10));
+        }
+        if (issueMatch) {
+          setCurrentProcessingIssue(parseInt(issueMatch[1], 10));
+        }
         return true; // Still running
       } else {
         setBulkScraping(false);
+        setCurrentProcessingYear(null);
+        setCurrentProcessingIssue(null);
         if (data.status === 'completed' && data.result) {
           setBulkProgress(`Done! ${data.result.totalIssues} issues, ${data.result.totalArticles} papers`);
         } else if (data.status === 'error') {
@@ -74,20 +92,63 @@ export default function AllPapersPage() {
 
     const interval = setInterval(async () => {
       const stillRunning = await checkScrapeStatus();
+
       if (!stillRunning) {
         clearInterval(interval);
-        // Refresh papers when done
-        fetchPapers();
+        // Final merge when done
+        mergePaperUpdates();
       }
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(interval);
   }, [bulkScraping]);
 
-  // Scrape all issues to populate the cache
-  const scrapeAllIssues = async () => {
+  // Trigger merge when processing moves to a new issue
+  useEffect(() => {
+    if (!bulkScraping || currentProcessingYear === null || currentProcessingIssue === null) return;
+
+    const currentKey = `${currentProcessingYear}-${currentProcessingIssue}`;
+
+    // If we've moved to a new issue, merge updates for the completed one
+    if (lastFetchedIssueKey !== null && lastFetchedIssueKey !== currentKey) {
+      mergePaperUpdates();
+    }
+
+    setLastFetchedIssueKey(currentKey);
+  }, [bulkScraping, currentProcessingYear, currentProcessingIssue]);
+
+  // Check if a paper's issue has been processed/verified
+  // We process from newest to oldest: highest year first, within each year highest issue first
+  const isPaperVerified = (paper: Paper): boolean => {
+    if (!bulkScraping) return true; // Not scraping, all are "verified"
+    if (currentProcessingYear === null) return true;
+
+    const paperYear = parseInt(paper.year, 10);
+    const paperIssue = parseInt(paper.issue, 10);
+
+    if (isNaN(paperYear)) return true;
+
+    // Papers from years already fully processed (years > current)
+    if (paperYear > currentProcessingYear) return true;
+
+    // Papers from years not yet started (years < current)
+    if (paperYear < currentProcessingYear) return false;
+
+    // Same year - check issue number (we go from highest to lowest issue)
+    if (isNaN(paperIssue) || currentProcessingIssue === null) return false;
+
+    // Issues >= current are done or in progress
+    return paperIssue >= currentProcessingIssue;
+  };
+
+  // Start the compilation after confirmation
+  const startCompilation = async () => {
+    setShowConfirmModal(false);
     setBulkScraping(true);
-    setBulkProgress('Starting bulk scrape...');
+    setBulkProgress('Starting compilation...');
+    setCurrentProcessingYear(null);
+    setCurrentProcessingIssue(null);
+    setLastFetchedIssueKey(null);
 
     try {
       // This will start the scrape - we'll poll for status separately
@@ -100,7 +161,7 @@ export default function AllPapersPage() {
       }
 
       if (data.success) {
-        setBulkProgress(`Done! ${data.totalIssues} issues, ${data.totalArticles} papers cached.`);
+        setBulkProgress(`Done! ${data.totalIssues} issues, ${data.totalArticles} papers`);
         await fetchPapers();
         setBulkScraping(false);
       } else if (data.error) {
@@ -108,8 +169,8 @@ export default function AllPapersPage() {
         setBulkScraping(false);
       }
     } catch (err) {
-      console.error('Bulk scrape error:', err);
-      setBulkProgress('Error: Failed to scrape');
+      console.error('Compilation error:', err);
+      setBulkProgress('Error: Failed to compile');
       setBulkScraping(false);
     }
   };
@@ -129,6 +190,85 @@ export default function AllPapersPage() {
       console.error('Fetch error:', err);
     }
     setLoading(false);
+  };
+
+  // Silently merge updated papers without affecting scroll or triggering loading state
+  const mergePaperUpdates = async () => {
+    try {
+      const res = await fetch('/api/test/all-papers');
+      const data = await res.json();
+      const newPapers: Paper[] = data.papers || [];
+
+      // Create a map of new papers by ID for quick lookup
+      const newPapersMap = new Map(newPapers.map(p => [p.id, p]));
+
+      // Update existing papers in place, preserving array order
+      setPapers(prevPapers => {
+        const existingIds = new Set(prevPapers.map(p => p.id));
+
+        // Update existing papers with new data
+        const updatedPapers = prevPapers.map(p => {
+          const newData = newPapersMap.get(p.id);
+          return newData || p;
+        });
+
+        // Add any brand new papers at the beginning (they're newest)
+        const brandNewPapers = newPapers.filter(p => !existingIds.has(p.id));
+
+        return [...brandNewPapers, ...updatedPapers];
+      });
+
+      setStats({
+        total: data.totalPapers || 0,
+        scraped: data.scrapedCount || 0,
+        withFullText: data.withFullTextCount || 0,
+      });
+    } catch (err) {
+      console.error('Merge error:', err);
+    }
+  };
+
+  // Cancel the running compilation
+  const cancelCompilation = async () => {
+    setShowCancelModal(false);
+    try {
+      await fetch('/api/test/scrape-all/cancel', { method: 'POST' });
+      setBulkScraping(false);
+      setBulkProgress('Cancelled');
+      setCurrentProcessingYear(null);
+      setCurrentProcessingIssue(null);
+      setLastFetchedIssueKey(null);
+    } catch (err) {
+      console.error('Cancel error:', err);
+    }
+  };
+
+  // Check for new issues only (quick check)
+  const checkForNewIssues = async () => {
+    setCheckingNew(true);
+    setBulkProgress('Checking for new issues...');
+
+    try {
+      const res = await fetch('/api/test/check-new-issues?scraper=counselors');
+      const data = await res.json();
+
+      if (data.newIssuesCount > 0) {
+        setBulkProgress(`Found ${data.newIssuesCount} new issue(s) with ${data.newArticlesCount} papers!`);
+        await fetchPapers();
+      } else {
+        setBulkProgress('No new issues found.');
+      }
+
+      // Clear message after a few seconds
+      setTimeout(() => {
+        setBulkProgress('');
+      }, 5000);
+    } catch (err) {
+      console.error('Check new issues error:', err);
+      setBulkProgress('Error checking for new issues');
+    }
+
+    setCheckingNew(false);
   };
 
   // Get unique years and volumes for filters
@@ -197,19 +337,37 @@ export default function AllPapersPage() {
               <span className="text-sm text-gray-400">{bulkProgress}</span>
             )}
             <button
-              onClick={scrapeAllIssues}
-              disabled={bulkScraping || loading}
-              className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
-              title="Fetch all issues from 2000-present and cache them"
+              onClick={checkForNewIssues}
+              disabled={bulkScraping || loading || checkingNew}
+              className="px-4 py-2 bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
+              title="Quick check for new issues published since last check"
             >
-              {bulkScraping ? '⏳ Scraping...' : '📥 Scrape All Issues'}
+              {checkingNew ? '⏳ Checking...' : '🔍 Check for new papers'}
             </button>
+            {bulkScraping ? (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+                title="Cancel the running compilation"
+              >
+                ⏹ Cancel
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowConfirmModal(true)}
+                disabled={loading || checkingNew}
+                className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+                title="Re-fetch all issues from 2000-present and update the cache"
+              >
+                🔄 Re-Compile all
+              </button>
+            )}
             <button
               onClick={fetchPapers}
               disabled={loading}
               className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Loading...' : '🔄 Refresh'}
+              {loading ? 'Loading...' : '↻ Refresh'}
             </button>
           </div>
         </div>
@@ -316,7 +474,9 @@ export default function AllPapersPage() {
                   <tr
                     key={`${paper.id}-${idx}`}
                     onClick={() => router.push(`/test/papers/${paper.id}`)}
-                    className="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer"
+                    className={`border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-opacity duration-300 ${
+                      isPaperVerified(paper) ? 'opacity-100' : 'opacity-40'
+                    }`}
                   >
                     <td className="py-2 px-2 text-gray-400">{paper.year || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.volume || '-'}</td>
@@ -359,8 +519,71 @@ export default function AllPapersPage() {
                     </td>
                   </tr>
                 ))}
+                {bulkScraping && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center">
+                      <div className="flex items-center justify-center gap-3 text-gray-400">
+                        <div className="animate-spin h-5 w-5 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                        <span>Compiling papers... {bulkProgress}</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Confirmation Modal */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md mx-4">
+              <h2 className="text-xl font-bold mb-4">Re-Compile Paper List?</h2>
+              <p className="text-gray-300 mb-6">
+                This will re-fetch the list of all papers from 2000 to present.
+                This process will take approximately 10 minutes.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={startCompilation}
+                  className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700"
+                >
+                  Yes, Re-Compile
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Confirmation Modal */}
+        {showCancelModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md mx-4">
+              <h2 className="text-xl font-bold mb-4">Cancel Compilation?</h2>
+              <p className="text-gray-300 mb-6">
+                This will stop the current compilation. Any issues already processed will remain cached.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+                >
+                  Continue Compiling
+                </button>
+                <button
+                  onClick={cancelCompilation}
+                  className="px-4 py-2 bg-red-600 rounded hover:bg-red-700"
+                >
+                  Yes, Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
