@@ -21,6 +21,7 @@ export default function SourcesPage() {
   const params = useParams();
   const token = params.token as string;
 
+  const [user, setUser] = useState<User | null>(null);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -32,17 +33,29 @@ export default function SourcesPage() {
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    fetchJournals();
+    fetchData();
   }, [token]);
 
-  async function fetchJournals() {
+  async function fetchData() {
     try {
-      const res = await fetch(`/api/users/${token}/journals`);
-      if (!res.ok) throw new Error('Failed to fetch journals');
-      const data = await res.json();
-      setJournals(data.journals || []);
+      const [userRes, journalsRes] = await Promise.all([
+        fetch(`/api/users/${token}`),
+        fetch(`/api/users/${token}/journals`),
+      ]);
+
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setUser(userData.user);
+      }
+
+      if (journalsRes.ok) {
+        const journalsData = await journalsRes.json();
+        setJournals(journalsData.journals || []);
+      } else {
+        throw new Error('Failed to fetch journals');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load journals');
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -139,13 +152,8 @@ export default function SourcesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {user && <UserHeader token={token} initialName={user.name} email={user.email} />}
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link href={`/u/${token}`} className="text-blue-600 hover:text-blue-800 text-sm">
-            ← 대시보드로 돌아가기
-          </Link>
-        </div>
-
         <h1 className="text-2xl font-bold text-gray-900 mb-2">학술지 선택</h1>
         <p className="text-gray-600 mb-6">
           논문을 수집할 학술지를 선택하세요. 선택한 학술지에서 키워드와 일치하는 새 논문이 발견되면 요약을 보내드립니다.

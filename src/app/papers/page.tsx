@@ -195,7 +195,7 @@ export default function AllPapersPage() {
   const fetchPapers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/test/all-papers');
+      const res = await fetch('/api/papers');
       const data = await res.json();
       setPapers(data.papers || []);
       setStats({
@@ -212,7 +212,7 @@ export default function AllPapersPage() {
   // Silently merge updated papers without affecting scroll or triggering loading state
   const mergePaperUpdates = async () => {
     try {
-      const res = await fetch('/api/test/all-papers');
+      const res = await fetch('/api/papers');
       const data = await res.json();
       const newPapers: Paper[] = data.papers || [];
 
@@ -327,7 +327,7 @@ export default function AllPapersPage() {
     setScrapingIds(prev => new Set(prev).add(paper.id));
 
     try {
-      const res = await fetch(`/api/test/paper/${paper.id}/scrape`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${paper.id}/scrape`, { method: 'POST' });
       const data = await res.json();
 
       if (!data.error) {

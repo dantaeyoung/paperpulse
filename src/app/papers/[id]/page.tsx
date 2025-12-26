@@ -42,7 +42,7 @@ export default function PaperDetailPage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/test/paper/${paperId}`);
+      const res = await fetch(`/api/papers/${paperId}`);
       const data = await res.json();
 
       if (data.error) {
@@ -65,7 +65,7 @@ export default function PaperDetailPage() {
 
     try {
       // Get the issue ID (catcode) for this paper
-      const res = await fetch(`/api/test/paper/${paperId}/scrape`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${paperId}/scrape`, { method: 'POST' });
       const data = await res.json();
 
       if (!data.error) {

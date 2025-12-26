@@ -182,7 +182,7 @@ export default function IssuePage({ params }: PageProps) {
   const scrapePaper = async (articleId: string) => {
     setScrapingPapers(prev => new Set(prev).add(articleId));
     try {
-      const res = await fetch(`/api/test/paper/${articleId}/scrape`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${articleId}/scrape`, { method: 'POST' });
       const data = await res.json();
 
       if (data.success) {

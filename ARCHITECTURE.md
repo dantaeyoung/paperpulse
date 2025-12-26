@@ -508,15 +508,20 @@ User clicks "Generate Summary"
 | `/api/users/[token]/journals` | GET | List journals with selection |
 | `/api/users/[token]/journals/[id]` | PUT | Toggle journal selection |
 
+### Paper Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/papers` | GET | List all papers |
+| `/api/papers/[id]` | GET | Get paper detail |
+| `/api/papers/[id]/scrape` | POST | Scrape single paper PDF |
+| `/api/papers/[id]/analyze` | POST | Run AI analysis on paper |
+
 ### Admin Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/journals` | GET | List all journals with stats |
-| `/api/test/papers` | GET | List papers (paginated) |
-| `/api/test/all-papers` | GET | List all papers |
-| `/api/test/paper/[id]` | GET | Get paper detail |
-| `/api/test/paper/[id]/scrape` | POST | Scrape single paper PDF |
 | `/api/test/issue-articles` | GET | Get articles for an issue |
 | `/api/test/scrape-all` | POST | Start bulk scraping |
 | `/api/test/scrape-all/cancel` | POST | Cancel bulk scraping |

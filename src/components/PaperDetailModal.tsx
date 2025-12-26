@@ -72,7 +72,7 @@ export default function PaperDetailModal({
       setPaperDetail({ ...paper, fullText: null, journal });
 
       try {
-        const res = await fetch(`/api/test/paper/${paper.id}`);
+        const res = await fetch(`/api/papers/${paper.id}`);
         const data = await res.json();
         if (data.paper) {
           setPaperDetail({
@@ -113,12 +113,12 @@ export default function PaperDetailModal({
     setScraping(true);
 
     try {
-      const res = await fetch(`/api/test/paper/${paperDetail.id}/scrape`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${paperDetail.id}/scrape`, { method: 'POST' });
       const data = await res.json();
 
       if (data.success) {
         // Refresh paper detail
-        const detailRes = await fetch(`/api/test/paper/${paperDetail.id}`);
+        const detailRes = await fetch(`/api/papers/${paperDetail.id}`);
         const detailData = await detailRes.json();
         if (detailData.paper) {
           const updatedPaper: PaperDetail = {
@@ -156,7 +156,7 @@ export default function PaperDetailModal({
     setAnalyzing(true);
 
     try {
-      const res = await fetch(`/api/test/paper/${paperDetail.id}/analyze`, { method: 'POST' });
+      const res = await fetch(`/api/papers/${paperDetail.id}/analyze`, { method: 'POST' });
       const data = await res.json();
 
       if (data.success && data.extraction) {
