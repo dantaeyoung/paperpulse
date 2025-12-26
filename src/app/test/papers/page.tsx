@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Paper {
   id: string;
@@ -20,6 +21,7 @@ interface Paper {
 }
 
 export default function AllPapersPage() {
+  const router = useRouter();
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, scraped: 0, withFullText: 0 });
@@ -263,25 +265,21 @@ export default function AllPapersPage() {
                 {filteredPapers.map((paper, idx) => (
                   <tr
                     key={`${paper.id}-${idx}`}
-                    className="border-b border-gray-800 hover:bg-gray-800/50"
+                    onClick={() => router.push(`/test/papers/${paper.id}`)}
+                    className="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer"
                   >
                     <td className="py-2 px-2 text-gray-400">{paper.year || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.volume || '-'}</td>
                     <td className="py-2 px-2 text-gray-400">{paper.issue || '-'}</td>
                     <td className="py-2 px-2">
-                      <a
-                        href={paper.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-blue-400"
-                      >
+                      <span className="hover:text-blue-400">
                         {paper.title}
-                      </a>
+                      </span>
                     </td>
                     <td className="py-2 px-2 text-gray-400 truncate max-w-[160px]" title={paper.authors.join(', ')}>
                       {paper.authors.join(', ') || '-'}
                     </td>
-                    <td className="py-2 px-2 text-center">
+                    <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                       {paper.isScraped ? (
                         <div className="flex items-center justify-center gap-2">
                           {paper.localPdfUrl && (

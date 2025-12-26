@@ -1,0 +1,96 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase/client';
+import { existsSync } from 'fs';
+import path from 'path';
+
+interface CachedArticle {
+  id: string;
+  title: string;
+  authors: string[];
+  year: string;
+  volume: string;
+  issue: string;
+  url: string;
+  pdfUrl: string;
+}
+
+// Get a single paper by ID
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: paperId } = await params;
+
+  const supabase = createServerClient();
+
+  try {
+    // First, try to find the paper in the papers table (scraped papers)
+    const { data: scrapedPaper } = await supabase
+      .from('papers')
+      .select('*, sources(name, config)')
+      .eq('external_id', paperId)
+      .single();
+
+    // Also search in issue_cache for the article metadata
+    const { data: cachedIssues } = await supabase
+      .from('issue_cache')
+      .select('scraper_key, journal_name, issue_info, articles');
+
+    let cachedArticle: CachedArticle | null = null;
+    let scraperKey = '';
+    let journalName = '';
+
+    // Find the article in cached issues
+    for (const cache of cachedIssues || []) {
+      const articles = cache.articles as CachedArticle[] || [];
+      const found = articles.find(a => a.id === paperId);
+      if (found) {
+        cachedArticle = found;
+        scraperKey = cache.scraper_key;
+        journalName = cache.journal_name;
+        break;
+      }
+    }
+
+    if (!cachedArticle && !scrapedPaper) {
+      return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
+    }
+
+    // Check for local PDF
+    let localPdfUrl: string | null = null;
+    if (scraperKey) {
+      const pdfPath = path.join(process.cwd(), 'public', 'pdfs', scraperKey, `${paperId}.pdf`);
+      if (existsSync(pdfPath)) {
+        localPdfUrl = `/pdfs/${scraperKey}/${paperId}.pdf`;
+      }
+    }
+
+    // Build the response
+    const paper = {
+      id: paperId,
+      scraperKey: scraperKey || (scrapedPaper?.sources as { config?: { scraper?: string } })?.config?.scraper || '',
+      journal: journalName || scrapedPaper?.journal_name || '',
+      year: cachedArticle?.year || (scrapedPaper?.published_at ? new Date(scrapedPaper.published_at).getFullYear().toString() : ''),
+      volume: cachedArticle?.volume || scrapedPaper?.volume || '',
+      issue: cachedArticle?.issue || scrapedPaper?.issue || '',
+      title: cachedArticle?.title || scrapedPaper?.title || '',
+      authors: cachedArticle?.authors || (scrapedPaper?.authors as { name: string }[] || []).map(a => a.name),
+      url: cachedArticle?.url || scrapedPaper?.url || '',
+      pdfUrl: cachedArticle?.pdfUrl || '',
+      isScraped: !!scrapedPaper,
+      hasFullText: !!scrapedPaper?.full_text,
+      fullTextLength: scrapedPaper?.full_text?.length || 0,
+      fullText: scrapedPaper?.full_text || null,
+      localPdfUrl,
+    };
+
+    return NextResponse.json({ paper });
+
+  } catch (error) {
+    console.error('Paper fetch error:', error);
+    return NextResponse.json({
+      error: 'Failed to fetch paper',
+      details: error instanceof Error ? error.message : 'Unknown',
+    }, { status: 500 });
+  }
+}
