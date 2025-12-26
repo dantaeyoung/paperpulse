@@ -317,60 +317,53 @@ export default function PaperDetailModal({
             )}
           </div>
 
-          {/* AI Extraction */}
+          {/* AI Extraction - Dynamic rendering based on JSON keys */}
           {paperDetail?.extraction && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-3">🤖 AI 분석 결과</h3>
               <div className="bg-gray-900 rounded p-4 space-y-3">
-                <div>
-                  <span className="text-gray-500 text-sm">연구 주제: </span>
-                  <span className="text-gray-200">{paperDetail.extraction.research_topic}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 text-sm">연구 대상: </span>
-                  <span className="text-gray-200">
-                    {paperDetail.extraction.research_subjects.type}
-                    {paperDetail.extraction.research_subjects.sample_size && (
-                      <span className="text-gray-400"> (n={paperDetail.extraction.research_subjects.sample_size})</span>
-                    )}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-500 text-sm">연구 방법: </span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${
-                    paperDetail.extraction.methodology_type === 'quantitative' ? 'bg-blue-900 text-blue-300' :
-                    paperDetail.extraction.methodology_type === 'qualitative' ? 'bg-green-900 text-green-300' :
-                    'bg-yellow-900 text-yellow-300'
-                  }`}>
-                    {paperDetail.extraction.methodology_type === 'quantitative' ? '양적연구' :
-                     paperDetail.extraction.methodology_type === 'qualitative' ? '질적연구' : '혼합연구'}
-                  </span>
-                </div>
-                {paperDetail.extraction.data_collection.length > 0 && (
-                  <div>
-                    <span className="text-gray-500 text-sm">자료수집: </span>
-                    <span className="text-gray-300">{paperDetail.extraction.data_collection.join(', ')}</span>
-                  </div>
-                )}
-                {paperDetail.extraction.statistical_methods && paperDetail.extraction.statistical_methods.length > 0 && (
-                  <div>
-                    <span className="text-gray-500 text-sm">통계분석: </span>
-                    <span className="text-gray-300">{paperDetail.extraction.statistical_methods.join(', ')}</span>
-                    {paperDetail.extraction.statistical_sophistication && (
-                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
-                        paperDetail.extraction.statistical_sophistication === 'advanced' ? 'bg-purple-900 text-purple-300' :
-                        paperDetail.extraction.statistical_sophistication === 'intermediate' ? 'bg-blue-900 text-blue-300' :
-                        'bg-gray-700 text-gray-300'
-                      }`}>
-                        {paperDetail.extraction.statistical_sophistication}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div className="pt-2 border-t border-gray-700">
-                  <span className="text-gray-500 text-sm">핵심 결과: </span>
-                  <p className="text-gray-200 mt-1">{paperDetail.extraction.key_findings}</p>
-                </div>
+                {Object.entries(paperDetail.extraction).map(([key, value]) => {
+                  // Skip internal fields
+                  if (key === 'paper_id' || key === 'title') return null;
+                  if (value === null || value === undefined) return null;
+
+                  // Format the key for display (snake_case to readable)
+                  const label = key
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase());
+
+                  // Render based on value type
+                  const renderValue = (val: unknown): React.ReactNode => {
+                    if (Array.isArray(val)) {
+                      if (val.length === 0) return null;
+                      return <span className="text-gray-300">{val.join(', ')}</span>;
+                    }
+                    if (typeof val === 'object' && val !== null) {
+                      // Render nested object inline
+                      const parts = Object.entries(val)
+                        .filter(([, v]) => v !== null && v !== undefined)
+                        .map(([k, v]) => `${k}: ${v}`);
+                      return <span className="text-gray-300">{parts.join(', ')}</span>;
+                    }
+                    if (typeof val === 'boolean') {
+                      return <span className="text-gray-300">{val ? 'Yes' : 'No'}</span>;
+                    }
+                    if (typeof val === 'number') {
+                      return <span className="text-gray-300">{val.toLocaleString()}</span>;
+                    }
+                    return <span className="text-gray-200">{String(val)}</span>;
+                  };
+
+                  const rendered = renderValue(value);
+                  if (!rendered) return null;
+
+                  return (
+                    <div key={key}>
+                      <span className="text-gray-500 text-sm">{label}: </span>
+                      {rendered}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
