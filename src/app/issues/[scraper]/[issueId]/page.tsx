@@ -505,13 +505,18 @@ export default function IssuePage({ params }: PageProps) {
                   📄 Scrape papers first
                 </button>
               ) : papersWithFullText < articles.length ? (
-                <button
-                  onClick={openGenerateModal}
-                  disabled={!!scrapeAllProgress}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  ⚠️ 부분 분석 생성 ({papersWithFullText}/{articles.length})
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={openGenerateModal}
+                    disabled={!!scrapeAllProgress}
+                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ⚠️ 부분 분석 생성 ({papersWithFullText}/{articles.length})
+                  </button>
+                  <span className="text-xs text-gray-400">
+                    💡 먼저 위에서 &apos;Scrape All&apos; 클릭 권장
+                  </span>
+                </div>
               ) : (
                 <button
                   onClick={openGenerateModal}
