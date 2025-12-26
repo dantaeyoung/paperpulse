@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import UserHeader from '@/components/UserHeader';
+
+interface User {
+  name: string | null;
+  email: string;
+}
 
 interface Journal {
   id: string;

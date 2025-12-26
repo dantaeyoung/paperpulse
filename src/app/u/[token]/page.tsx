@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import UserHeader from '@/components/UserHeader';
 
 interface User {
   id: string;
@@ -137,16 +138,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <UserHeader token={token} initialName={user.name} email={user.email} />
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <header className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">
-            안녕하세요, {user.name || '회원'}님
-          </h1>
-          <p className="text-gray-600 mt-1">
+        {/* Welcome Message */}
+        <div className="mb-8">
+          <p className="text-gray-600">
             매주 {DAYS[user.digest_day]}요일 {user.digest_hour}시에 논문 요약을 받아보세요
           </p>
-        </header>
+        </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">

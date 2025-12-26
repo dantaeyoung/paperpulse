@@ -36,14 +36,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const supabase = createServerClient();
 
   try {
-    // Get paper with full text
-    const { data: paper, error: paperError } = await supabase
+    // Get paper with full text - try external_id first (used for cached articles)
+    let paper = null;
+
+    // Try external_id first
+    const { data: paperByExternal } = await supabase
       .from('papers')
       .select('id, title, full_text, abstract')
-      .eq('id', paperId)
+      .eq('external_id', paperId)
       .single();
 
-    if (paperError || !paper) {
+    if (paperByExternal) {
+      paper = paperByExternal;
+    } else {
+      // Fall back to UUID id
+      const { data: paperById } = await supabase
+        .from('papers')
+        .select('id, title, full_text, abstract')
+        .eq('id', paperId)
+        .single();
+      paper = paperById;
+    }
+
+    if (!paper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
 
@@ -99,11 +114,11 @@ ${textToAnalyze.substring(0, 15000)}`; // Limit text length
       }, { status: 500 });
     }
 
-    // Store extraction in papers table (add extraction column if needed)
+    // Store extraction in papers table using the actual UUID
     const { error: updateError } = await supabase
       .from('papers')
       .update({ extraction })
-      .eq('id', paperId);
+      .eq('id', paper.id);
 
     if (updateError) {
       console.error('Failed to save extraction:', updateError);
@@ -113,7 +128,7 @@ ${textToAnalyze.substring(0, 15000)}`; // Limit text length
     return NextResponse.json({
       success: true,
       extraction,
-      paper_id: paperId,
+      paper_id: paper.id,
     });
 
   } catch (error) {

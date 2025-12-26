@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import UserHeader from '@/components/UserHeader';
+
+interface User {
+  name: string | null;
+  email: string;
+}
 
 interface Keyword {
   id: string;
@@ -14,6 +19,7 @@ export default function KeywordsPage() {
   const params = useParams();
   const token = params.token as string;
 
+  const [user, setUser] = useState<User | null>(null);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [newKeyword, setNewKeyword] = useState('');
   const [loading, setLoading] = useState(true);
@@ -21,17 +27,29 @@ export default function KeywordsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchKeywords();
+    fetchData();
   }, [token]);
 
-  async function fetchKeywords() {
+  async function fetchData() {
     try {
-      const res = await fetch(`/api/users/${token}/keywords`);
-      if (!res.ok) throw new Error('Failed to fetch keywords');
-      const data = await res.json();
-      setKeywords(data.keywords || []);
+      const [userRes, keywordsRes] = await Promise.all([
+        fetch(`/api/users/${token}`),
+        fetch(`/api/users/${token}/keywords`),
+      ]);
+
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setUser(userData.user);
+      }
+
+      if (keywordsRes.ok) {
+        const keywordsData = await keywordsRes.json();
+        setKeywords(keywordsData.keywords || []);
+      } else {
+        throw new Error('Failed to fetch keywords');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load keywords');
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -106,13 +124,8 @@ export default function KeywordsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {user && <UserHeader token={token} initialName={user.name} email={user.email} />}
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link href={`/u/${token}`} className="text-blue-600 hover:text-blue-800 text-sm">
-            ← 대시보드로 돌아가기
-          </Link>
-        </div>
-
         <h1 className="text-2xl font-bold text-gray-900 mb-6">키워드 관리</h1>
 
         {error && (

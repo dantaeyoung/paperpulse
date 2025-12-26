@@ -27,7 +27,7 @@ export async function GET(
     // First, try to find the paper in the papers table (scraped papers)
     const { data: scrapedPaper } = await supabase
       .from('papers')
-      .select('*, sources(name, config)')
+      .select('*, extraction, sources(name, config)')
       .eq('external_id', paperId)
       .single();
 
@@ -65,9 +65,11 @@ export async function GET(
       }
     }
 
-    // Look for AI extraction from issue_summaries
-    let extraction = null;
-    if (scrapedPaper?.id) {
+    // Look for AI extraction - first check paper's own extraction field
+    let extraction = scrapedPaper?.extraction || null;
+
+    // Fall back to issue_summaries if no direct extraction
+    if (!extraction && scrapedPaper?.id) {
       const { data: summaries } = await supabase
         .from('issue_summaries')
         .select('extractions')

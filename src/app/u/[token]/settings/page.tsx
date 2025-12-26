@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import UserHeader from '@/components/UserHeader';
 
 interface User {
   id: string;
@@ -120,13 +120,8 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <UserHeader token={token} initialName={user.name} email={user.email} />
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link href={`/u/${token}`} className="text-blue-600 hover:text-blue-800 text-sm">
-            ← 대시보드로 돌아가기
-          </Link>
-        </div>
-
         <h1 className="text-2xl font-bold text-gray-900 mb-6">설정</h1>
 
         {error && (
