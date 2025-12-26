@@ -216,17 +216,29 @@ export async function GET(request: NextRequest) {
     const { data: allIssues } = await supabase
       .from('issue_cache')
       .select('issue_id, issue_info')
-      .eq('scraper_key', scraperKey)
-      .order('issue_id', { ascending: false });
+      .eq('scraper_key', scraperKey);
 
     let prevIssue: { id: string; info: IssueInfo } | null = null;
     let nextIssue: { id: string; info: IssueInfo } | null = null;
 
     if (allIssues && allIssues.length > 0) {
-      // Sort by issue_id as numbers (descending = newest first)
-      const sortedIssues = allIssues.sort((a, b) =>
-        parseInt(b.issue_id, 10) - parseInt(a.issue_id, 10)
-      );
+      // Sort by year desc, volume desc, issue desc (newest first)
+      const sortedIssues = allIssues.sort((a, b) => {
+        const infoA = a.issue_info as IssueInfo;
+        const infoB = b.issue_info as IssueInfo;
+
+        const yearA = parseInt(infoA.year || '0', 10);
+        const yearB = parseInt(infoB.year || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+
+        const volA = parseInt(infoA.volume || '0', 10);
+        const volB = parseInt(infoB.volume || '0', 10);
+        if (volB !== volA) return volB - volA;
+
+        const issueA = parseInt(infoA.issue || '0', 10);
+        const issueB = parseInt(infoB.issue || '0', 10);
+        return issueB - issueA;
+      });
 
       const currentIndex = sortedIssues.findIndex(i => i.issue_id === issueId);
       if (currentIndex !== -1) {
