@@ -1,6 +1,12 @@
-# 논문 다이제스트 (Paper Digest)
+# paperpulse
 
-AI-powered Korean academic journal summarizer with weekly email digests.
+LLM-powered Korean academic journal summarizer with weekly email digests.
+
+
+```diff
+! Everything below was written by an AI!
+```
+
 
 ## Features
 
