@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 논문 다이제스트 (Paper Digest)
+
+AI-powered Korean academic journal summarizer with weekly email digests.
+
+## Features
+
+- **Journal Scraping**: Scrapes Korean academic journals and extracts full text from PDFs
+- **AI Summaries**: Generates paper summaries using Gemini or OpenAI
+- **Weekly Digests**: Sends personalized email digests based on user keywords
+- **Issue Trend Analysis**: AI-generated issue summaries with citations, statistics, and methodology breakdowns
+- **Extensible Architecture**: Easy to add new journal scrapers
+
+## Currently Supported Journals
+
+- 한국상담학회지 (Korean Counseling Journal)
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Database**: Supabase (PostgreSQL)
+- **AI**: Google Gemini / OpenAI
+- **Email**: Resend
+- **PDF Extraction**: unpdf
+- **Styling**: Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- Supabase project
+- Resend account (for emails)
+- Gemini or OpenAI API key
+
+### Environment Variables
+
+Create a `.env.local` file:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# AI Provider (at least one)
+GEMINI_API_KEY=your-gemini-key
+OPENAI_API_KEY=your-openai-key
+
+# Email (Resend)
+RESEND_API_KEY=re_xxxxx
+EMAIL_FROM=digest@yourdomain.com
+
+# Cron Security
+CRON_SECRET=your-secret-here
+
+# App URL
+NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Database Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Run the Supabase migrations:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npx supabase db push
+```
 
-## Learn More
+### Development
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── cron/          # Scheduled jobs (collect, digest)
+│   │   ├── issues/        # Issue summary endpoints
+│   │   ├── journals/      # Journal listing
+│   │   └── users/         # User management
+│   ├── issues/            # Issue browser UI
+│   ├── test/              # Admin tools (papers table, scraper)
+│   └── u/[token]/         # User dashboard
+├── components/            # Reusable components
+└── lib/
+    ├── ai/                # AI providers and summary services
+    ├── email/             # Resend email service
+    ├── scrapers/          # Journal scraper implementations
+    └── supabase/          # Database client and types
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deploy to Vercel for automatic cron job support:
+
+```bash
+vercel deploy
+```
+
+Cron jobs (configured in `vercel.json`):
+- `/api/cron/collect` - Daily at 21:00 KST (paper collection)
+- `/api/cron/digest` - Daily at 22:00 KST (email digests)
+
+## Adding a New Journal Scraper
+
+1. Create a new file in `src/lib/scrapers/`
+2. Extend `JournalScraperBase` class
+3. Implement required methods: `getIssues()`, `parseArticlesFromIssue()`, `getPdfUrl()`
+4. Register with `registerScraper()`
+
+See `src/lib/scrapers/counselors.ts` for reference.
