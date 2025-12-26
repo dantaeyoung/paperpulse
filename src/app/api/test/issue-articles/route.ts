@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
-import { getScraper } from '@/lib/scrapers/journal-base';
+import { getScraper, JournalArticle } from '@/lib/scrapers/journal-base';
 import { existsSync } from 'fs';
 import path from 'path';
 import '@/lib/scrapers/counselors';
+
+interface CachedArticle {
+  id: string;
+  title: string;
+  authors: string[];
+  year: string;
+  volume: string;
+  issue: string;
+  url: string;
+  pdfUrl: string;
+}
 
 // Get all articles for an issue, merged with database status
 export async function GET(request: NextRequest) {
   const scraperKey = request.nextUrl.searchParams.get('scraper');
   const issueId = request.nextUrl.searchParams.get('issue');
+  const refresh = request.nextUrl.searchParams.get('refresh') === 'true';
 
   if (!scraperKey || !issueId) {
     return NextResponse.json({
@@ -23,6 +35,8 @@ export async function GET(request: NextRequest) {
     }, { status: 404 });
   }
 
+  const supabase = createServerClient();
+
   try {
     // Get issue info
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,21 +47,74 @@ export async function GET(request: NextRequest) {
       issue: '',
     };
 
-    // Fetch articles from website
-    const websiteArticles = await scraper.collectIssue(issueId, {
-      extractText: false,
-      onProgress: () => {},
-    });
+    let websiteArticles: JournalArticle[] = [];
+    let fromCache = false;
 
-    // Fill in issue info for articles
-    for (const article of websiteArticles) {
-      if (!article.year) article.year = issueInfo.year;
-      if (!article.volume) article.volume = issueInfo.volume;
-      if (!article.issue) article.issue = issueInfo.issue;
+    // Check cache first (unless refresh requested)
+    if (!refresh) {
+      const { data: cached } = await supabase
+        .from('issue_cache')
+        .select('articles, cached_at')
+        .eq('scraper_key', scraperKey)
+        .eq('issue_id', issueId)
+        .single();
+
+      if (cached?.articles) {
+        websiteArticles = (cached.articles as CachedArticle[]).map(a => ({
+          id: a.id,
+          title: a.title,
+          authors: a.authors,
+          year: a.year || issueInfo.year,
+          volume: a.volume || issueInfo.volume,
+          issue: a.issue || issueInfo.issue,
+          url: a.url,
+          pdfUrl: a.pdfUrl,
+        }));
+        fromCache = true;
+      }
+    }
+
+    // Fetch from website if no cache or refresh requested
+    if (!fromCache) {
+      websiteArticles = await scraper.collectIssue(issueId, {
+        extractText: false,
+        onProgress: () => {},
+      });
+
+      // Fill in issue info for articles
+      for (const article of websiteArticles) {
+        if (!article.year) article.year = issueInfo.year;
+        if (!article.volume) article.volume = issueInfo.volume;
+        if (!article.issue) article.issue = issueInfo.issue;
+      }
+
+      // Cache the results
+      const articlesToCache = websiteArticles.map(a => ({
+        id: a.id,
+        title: a.title,
+        authors: a.authors,
+        year: a.year,
+        volume: a.volume,
+        issue: a.issue,
+        url: a.url,
+        pdfUrl: a.pdfUrl,
+      }));
+
+      await supabase
+        .from('issue_cache')
+        .upsert({
+          scraper_key: scraperKey,
+          issue_id: issueId,
+          journal_name: scraper.name,
+          issue_info: issueInfo,
+          articles: articlesToCache,
+          cached_at: new Date().toISOString(),
+        }, {
+          onConflict: 'scraper_key,issue_id',
+        });
     }
 
     // Get source from database
-    const supabase = createServerClient();
     const { data: source } = await supabase
       .from('sources')
       .select('id')
@@ -121,6 +188,7 @@ export async function GET(request: NextRequest) {
       issueInfo,
       totalArticles: unifiedArticles.length,
       scrapedCount,
+      fromCache,
       articles: unifiedArticles,
     });
 

@@ -61,6 +61,7 @@ export default function ScraperDashboard() {
   const [articles, setArticles] = useState<UnifiedArticle[]>([]);
   const [journalName, setJournalName] = useState<string>('');
   const [scrapingArticleId, setScrapingArticleId] = useState<string | null>(null);
+  const [fromCache, setFromCache] = useState<boolean>(false);
 
   // Detail modal
   const [selectedPaper, setSelectedPaper] = useState<PaperDetail | null>(null);
@@ -100,15 +101,17 @@ export default function ScraperDashboard() {
   };
 
   // Load articles for selected issue (unified view)
-  const loadArticles = async (scraperKey: string, issueId: string) => {
+  const loadArticles = async (scraperKey: string, issueId: string, refresh = false) => {
     setLoading(true);
     setArticles([]);
 
     try {
-      const res = await fetch(`/api/test/issue-articles?scraper=${scraperKey}&issue=${issueId}`);
+      const url = `/api/test/issue-articles?scraper=${scraperKey}&issue=${issueId}${refresh ? '&refresh=true' : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       setArticles(data.articles || []);
       setJournalName(data.journal || '');
+      setFromCache(data.fromCache || false);
     } catch (err) {
       console.error('Load articles error:', err);
     }
@@ -268,9 +271,24 @@ export default function ScraperDashboard() {
         {selectedIssueId && articles.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
-                📄 {journalName} - 제{articles[0]?.volume}권 제{articles[0]?.issue}호
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold">
+                  📄 {journalName} - 제{articles[0]?.volume}권 제{articles[0]?.issue}호
+                </h2>
+                {fromCache && (
+                  <span className="px-2 py-0.5 bg-gray-700 rounded text-xs text-gray-400">
+                    cached
+                  </span>
+                )}
+                <button
+                  onClick={() => loadArticles(scraperKey!, selectedIssueId, true)}
+                  disabled={loading}
+                  className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs disabled:opacity-50"
+                  title="Refresh from website"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm">
                   <span className="text-green-400">{scrapedCount}</span>
