@@ -58,6 +58,7 @@ export default function PaperDetailModal({
   const [paperDetail, setPaperDetail] = useState<PaperDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Fetch paper details when paper changes
   useEffect(() => {
@@ -147,6 +148,40 @@ export default function PaperDetailModal({
     }
 
     setScraping(false);
+  };
+
+  const handleAnalyze = async () => {
+    if (!paperDetail) return;
+
+    setAnalyzing(true);
+
+    try {
+      const res = await fetch(`/api/test/paper/${paperDetail.id}/analyze`, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success && data.extraction) {
+        setPaperDetail({
+          ...paperDetail,
+          extraction: data.extraction,
+        });
+
+        // Notify parent of update
+        if (onPaperUpdated) {
+          onPaperUpdated({
+            ...paperDetail,
+            hasExtraction: true,
+          });
+        }
+      } else if (data.error) {
+        console.error('Analysis error:', data.error);
+        alert(`Analysis failed: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Analyze error:', err);
+      alert('Analysis failed. Check console for details.');
+    }
+
+    setAnalyzing(false);
   };
 
   if (!paper) return null;
@@ -260,10 +295,25 @@ export default function PaperDetailModal({
                 {(paperDetail.fullTextLength / 1000).toFixed(1)}k characters
               </div>
             )}
-            {paperDetail?.extraction && (
-              <div className="px-3 py-1 rounded text-sm bg-purple-900 text-purple-300">
-                ✓ AI 분석 완료
-              </div>
+            {/* AI Analysis Button/Status */}
+            {paperDetail?.hasFullText && (
+              paperDetail?.extraction ? (
+                <button
+                  onClick={handleAnalyze}
+                  disabled={analyzing}
+                  className="px-3 py-1 rounded text-sm bg-purple-900 text-purple-300 hover:bg-purple-800 transition-colors disabled:opacity-50"
+                >
+                  {analyzing ? '⏳ 분석 중...' : '🔄 재분석'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleAnalyze}
+                  disabled={analyzing}
+                  className="px-3 py-1 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors disabled:opacity-50"
+                >
+                  {analyzing ? '⏳ 분석 중...' : '🤖 AI 분석 실행'}
+                </button>
+              )
             )}
           </div>
 
