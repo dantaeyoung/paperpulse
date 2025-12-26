@@ -37,25 +37,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   try {
     // Get paper with full text - try external_id first (used for cached articles)
-    let paper = null;
-
-    // Try external_id first
-    const { data: paperByExternal } = await supabase
+    // Don't use .single() as it fails on 0 or multiple results
+    const { data: papersByExternal } = await supabase
       .from('papers')
       .select('id, title, full_text, abstract')
-      .eq('external_id', paperId)
-      .single();
+      .eq('external_id', paperId);
 
-    if (paperByExternal) {
-      paper = paperByExternal;
-    } else {
+    let paper = papersByExternal?.[0] || null;
+
+    if (!paper) {
       // Fall back to UUID id
-      const { data: paperById } = await supabase
+      const { data: papersById } = await supabase
         .from('papers')
         .select('id, title, full_text, abstract')
-        .eq('id', paperId)
-        .single();
-      paper = paperById;
+        .eq('id', paperId);
+      paper = papersById?.[0] || null;
     }
 
     if (!paper) {

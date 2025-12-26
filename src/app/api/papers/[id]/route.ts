@@ -25,11 +25,17 @@ export async function GET(
 
   try {
     // First, try to find the paper in the papers table (scraped papers)
-    const { data: scrapedPaper } = await supabase
+    // Don't use .single() as there could be multiple rows or zero rows
+    const { data: scrapedPapers, error: scrapedError } = await supabase
       .from('papers')
       .select('*, extraction, sources(name, config)')
-      .eq('external_id', paperId)
-      .single();
+      .eq('external_id', paperId);
+
+    if (scrapedError) {
+      console.error('Paper query error:', scrapedError);
+    }
+
+    const scrapedPaper = scrapedPapers?.[0] || null;
 
     // Also search in issue_cache for the article metadata
     const { data: cachedIssues } = await supabase
