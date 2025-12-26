@@ -37,6 +37,21 @@ export async function GET() {
         cached_at: issue.cached_at,
       }));
 
+      // Sort by year desc, volume desc, issue desc (newest first)
+      issues.sort((a, b) => {
+        const yearA = parseInt(a.issue_info.year || '0', 10);
+        const yearB = parseInt(b.issue_info.year || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+
+        const volA = parseInt(a.issue_info.volume || '0', 10);
+        const volB = parseInt(b.issue_info.volume || '0', 10);
+        if (volB !== volA) return volB - volA;
+
+        const issueA = parseInt(a.issue_info.issue || '0', 10);
+        const issueB = parseInt(b.issue_info.issue || '0', 10);
+        return issueB - issueA;
+      });
+
       return {
         scraperKey: key,
         name: scraper.name,
