@@ -12,3 +12,16 @@ CREATE TABLE issue_cache (
 );
 
 CREATE INDEX idx_issue_cache_lookup ON issue_cache(scraper_key, issue_id);
+
+-- Cache for year issue lists (which issues exist for a given year)
+CREATE TABLE year_issues_cache (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scraper_key VARCHAR(50) NOT NULL,
+  year INTEGER NOT NULL,
+  journal_name VARCHAR(200),
+  issues JSONB DEFAULT '[]',  -- array of {id, year, volume, issue}
+  cached_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(scraper_key, year)
+);
+
+CREATE INDEX idx_year_issues_cache_lookup ON year_issues_cache(scraper_key, year);

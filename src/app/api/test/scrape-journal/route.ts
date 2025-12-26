@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const extractText = request.nextUrl.searchParams.get('extract') === 'true';
   const save = request.nextUrl.searchParams.get('save') === 'true';
   const token = request.nextUrl.searchParams.get('token');
+  const refresh = request.nextUrl.searchParams.get('refresh') === 'true';
 
   // List all available scrapers
   if (!scraperKey) {
@@ -46,16 +47,54 @@ export async function GET(request: NextRequest) {
     console.log(`[${scraperKey}] ${msg}`);
   };
 
+  const supabase = createServerClient();
+
   try {
     // If year is specified but no issue, list all issues for that year
     if (year && !issueId) {
       const yearNum = parseInt(year, 10);
-      const issues = await scraper.getIssues(yearNum, yearNum);
+      let issues;
+      let fromCache = false;
+
+      // Check cache first (unless refresh requested)
+      if (!refresh) {
+        const { data: cached } = await supabase
+          .from('year_issues_cache')
+          .select('issues, cached_at')
+          .eq('scraper_key', scraperKey)
+          .eq('year', yearNum)
+          .single();
+
+        if (cached?.issues) {
+          issues = cached.issues;
+          fromCache = true;
+        }
+      }
+
+      // Fetch from website if no cache or refresh requested
+      if (!issues) {
+        issues = await scraper.getIssues(yearNum, yearNum);
+
+        // Cache the results
+        await supabase
+          .from('year_issues_cache')
+          .upsert({
+            scraper_key: scraperKey,
+            year: yearNum,
+            journal_name: scraper.name,
+            issues,
+            cached_at: new Date().toISOString(),
+          }, {
+            onConflict: 'scraper_key,year',
+          });
+      }
+
       return NextResponse.json({
         scraper: scraperKey,
         journal: scraper.name,
         year: yearNum,
         issues,
+        fromCache,
         message: `Found ${issues.length} issues. Use ?scraper=${scraperKey}&issue=XXX to scrape a specific issue.`,
       });
     }
