@@ -65,6 +65,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchSettings() {
@@ -91,18 +92,23 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+      } else {
+        setError(data.error || 'Failed to save settings');
       }
     } catch (err) {
       console.error('Failed to save settings:', err);
+      setError('Network error - failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -126,18 +132,23 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`px-4 py-2 rounded font-medium transition-colors ${
-            saved
-              ? 'bg-green-600 text-white'
-              : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50'
-          }`}
-        >
-          {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
-        </button>
+        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <div className="flex items-center gap-4">
+          {error && (
+            <span className="text-red-400 text-sm">{error}</span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`px-4 py-2 rounded font-medium transition-colors ${
+              saved
+                ? 'bg-green-600 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50'
+            }`}
+          >
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -145,8 +156,8 @@ export default function SettingsPage() {
         <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="font-semibold text-lg">Paper Extraction Prompt</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="font-semibold text-lg text-white">Paper Extraction Prompt</h2>
+              <p className="text-sm text-gray-400 mt-1">
                 Used to extract structured data from individual papers (methodology, sample size, findings)
               </p>
             </div>
@@ -168,8 +179,8 @@ export default function SettingsPage() {
         <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="font-semibold text-lg">Issue Synthesis Prompt</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="font-semibold text-lg text-white">Issue Synthesis Prompt</h2>
+              <p className="text-sm text-gray-400 mt-1">
                 Used to generate the overall issue trend summary from extracted paper data
               </p>
             </div>
