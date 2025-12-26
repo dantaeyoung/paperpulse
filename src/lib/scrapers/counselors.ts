@@ -10,133 +10,92 @@ class CounselorsScraper extends JournalScraperBase {
   readonly baseUrl = 'https://counselors.or.kr';
   readonly scraperKey = 'counselors';
 
-  // Catcode ranges by year (discovered from website)
-  // Volume number = year - 1999 (e.g., 2025 = Vol.26)
-  // Pattern: 6 issues per year starting from 2003, 4 issues for 2000-2002
-  private catcodeRanges: Record<number, [number, number]> = {
-    2025: [133, 138],  // Vol.26
-    2024: [127, 132],  // Vol.25
-    2023: [121, 126],  // Vol.24
-    2022: [115, 120],  // Vol.23
-    2021: [109, 114],  // Vol.22
-    2020: [103, 108],  // Vol.21
-    2019: [97, 102],   // Vol.20
-    2018: [91, 96],    // Vol.19
-    2017: [85, 90],    // Vol.18
-    2016: [79, 84],    // Vol.17
-    2015: [73, 78],    // Vol.16
-    2014: [67, 72],    // Vol.15
-    2013: [61, 66],    // Vol.14
-    2012: [55, 60],    // Vol.13
-    2011: [49, 54],    // Vol.12
-    2010: [43, 48],    // Vol.11
-    2009: [37, 42],    // Vol.10
-    2008: [31, 36],    // Vol.9
-    2007: [25, 30],    // Vol.8
-    2006: [19, 24],    // Vol.7
-    2005: [13, 18],    // Vol.6
-    2004: [7, 12],     // Vol.5
-    2003: [5, 6],      // Vol.4 (only 2 issues?)
-    2002: [3, 4],      // Vol.3
-    2001: [2, 2],      // Vol.2
-    2000: [1, 1],      // Vol.1
-  };
+  // Cache for catcode → issue info mapping (populated from website)
+  private catcodeCache: Map<string, JournalIssue> = new Map();
 
-  // Derive year/volume/issue from catcode
-  getIssueInfoFromCatcode(catcode: string): JournalIssue {
-    const catcodeNum = parseInt(catcode, 10);
+  // Parse issue info from dropdown option text like "상담학 연구 제22권 제2호(통권 122호)"
+  private parseIssueFromOptionText(catcode: string, text: string): JournalIssue {
+    const volMatch = text.match(/제(\d+)권/);
+    const issueMatch = text.match(/제(\d+)호/);
 
-    for (const [yearStr, [start, end]] of Object.entries(this.catcodeRanges)) {
-      if (catcodeNum >= start && catcodeNum <= end) {
-        const year = parseInt(yearStr, 10);
-        return {
-          id: catcode,
-          year: String(year),
-          volume: String(year - 1999),
-          issue: String(catcodeNum - start + 1),
-        };
-      }
-    }
+    const volume = volMatch ? volMatch[1] : '';
+    const issue = issueMatch ? issueMatch[1] : '';
+    // Year = 1999 + volume (Vol.1 = 2000, Vol.22 = 2021, etc.)
+    const year = volume ? String(1999 + parseInt(volume, 10)) : '';
 
-    // Fallback for unknown catcodes
-    return { id: catcode, year: '', volume: '', issue: '' };
+    return { id: catcode, year, volume, issue };
   }
 
-  async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
-    // Fetch the issue list page to get all available issues dynamically
-    const url = `${this.baseUrl}/KOR/journal/journal_year.php`;
-    console.log(`[counselors] Fetching issue list from: ${url}`);
+  // Fetch and cache the catcode → issue mapping from the website
+  private async fetchCatcodeMapping(): Promise<void> {
+    if (this.catcodeCache.size > 0) return; // Already cached
 
+    const url = `${this.baseUrl}/KOR/journal/journal.php?ptype=list&catcode=1&lnb2=1`;
     try {
       const res = await this.fetchWithRetry(url);
       const buffer = await res.arrayBuffer();
       const decoder = new TextDecoder('euc-kr');
       const html = decoder.decode(buffer);
 
-      const issues: JournalIssue[] = [];
-
-      // Parse links like: /KOR/journal/journal.php?ptype=list&catcode=137&lnb2=1
-      // The page has year headings like "2025년" followed by issue links
-      const linkPattern = /catcode=(\d+)/g;
-      const yearPattern = /(\d{4})년/g;
-
-      // Find all catcodes
-      const catcodes: number[] = [];
+      // Parse all options: <option value="108">상담학 연구 제22권 제2호(통권 122호)</option>
+      const optionPattern = /<option[^>]*value="(\d+)"[^>]*>([^<]+)<\/option>/gi;
       let match;
-      while ((match = linkPattern.exec(html)) !== null) {
-        const catcode = parseInt(match[1], 10);
-        if (!catcodes.includes(catcode)) {
-          catcodes.push(catcode);
+      while ((match = optionPattern.exec(html)) !== null) {
+        const catcode = match[1];
+        const text = match[2];
+        if (text.includes('제') && text.includes('권')) {
+          const issueInfo = this.parseIssueFromOptionText(catcode, text);
+          this.catcodeCache.set(catcode, issueInfo);
         }
       }
-
-      // Sort catcodes descending (newest first)
-      catcodes.sort((a, b) => b - a);
-
-      // Convert catcodes to issues using our mapping
-      for (const catcode of catcodes) {
-        const issueInfo = this.getIssueInfoFromCatcode(String(catcode));
-        const year = parseInt(issueInfo.year, 10);
-
-        // Filter by year range
-        if (year >= startYear && year <= endYear) {
-          issues.push(issueInfo);
-        }
-      }
-
-      console.log(`[counselors] Found ${issues.length} issues between ${startYear}-${endYear}`);
-      return issues;
-
+      console.log(`[counselors] Cached ${this.catcodeCache.size} catcode mappings`);
     } catch (err) {
-      console.error('[counselors] Failed to fetch issue list, falling back to hardcoded ranges:', err);
-      // Fallback to hardcoded ranges
-      return this.getIssuesFallback(startYear, endYear);
+      console.error('[counselors] Failed to fetch catcode mapping:', err);
     }
   }
 
-  // Fallback method using hardcoded ranges
-  private getIssuesFallback(startYear: number, endYear: number): JournalIssue[] {
+  // Derive year/volume/issue from catcode
+  getIssueInfoFromCatcode(catcode: string): JournalIssue {
+    const cached = this.catcodeCache.get(catcode);
+    if (cached) return cached;
+
+    // Fallback for unknown catcodes
+    return { id: catcode, year: '', volume: '', issue: '' };
+  }
+
+  async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
+    // First, ensure we have the catcode mapping
+    await this.fetchCatcodeMapping();
+
     const issues: JournalIssue[] = [];
-    const currentYear = new Date().getFullYear();
 
-    for (let year = startYear; year <= Math.min(endYear, currentYear); year++) {
-      const range = this.catcodeRanges[year];
-      if (!range) continue;
-
-      for (let catcode = range[0]; catcode <= range[1]; catcode++) {
-        issues.push({
-          id: String(catcode),
-          volume: String(year - 1999),
-          issue: String(catcode - range[0] + 1),
-          year: String(year),
-        });
+    // Use the cached mapping to get issues in the year range
+    for (const [catcode, issueInfo] of this.catcodeCache.entries()) {
+      const year = parseInt(issueInfo.year, 10);
+      if (!isNaN(year) && year >= startYear && year <= endYear) {
+        issues.push(issueInfo);
       }
     }
 
+    // Sort by catcode descending (newest first)
+    issues.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
+
+    console.log(`[counselors] Found ${issues.length} issues between ${startYear}-${endYear}`);
     return issues;
   }
 
   async parseArticlesFromIssue(catcode: string, issueInfo: JournalIssue): Promise<JournalArticle[]> {
+    // Ensure we have the catcode mapping for correct year/volume/issue
+    await this.fetchCatcodeMapping();
+
+    // Use cached mapping if issueInfo is incomplete
+    if (!issueInfo.year || !issueInfo.volume) {
+      const cached = this.catcodeCache.get(catcode);
+      if (cached) {
+        issueInfo = cached;
+      }
+    }
+
     const url = `${this.baseUrl}/KOR/journal/journal.php?ptype=list&catcode=${catcode}&lnb2=1`;
     console.log(`[counselors] Fetching issue from: ${url}`);
 
@@ -196,8 +155,8 @@ class CounselorsScraper extends JournalScraperBase {
   }
 
   private extractArticleFromRow(rowHtml: string, articleId: string, issueInfo: JournalIssue): JournalArticle | null {
-    // Extract paper number: in first <td><b>1</b></td>
-    const numberPattern = /<td[^>]*>\s*<b>(\d+)<\/b>\s*<\/td>/i;
+    // Extract paper number: in first <td><b> 1 </b></td> (with possible whitespace inside <b>)
+    const numberPattern = /<td[^>]*>\s*<b>\s*(\d+)\s*<\/b>\s*<\/td>/i;
     const numberMatch = numberPattern.exec(rowHtml);
     const paperNumber = numberMatch ? parseInt(numberMatch[1], 10) : undefined;
 
@@ -256,9 +215,12 @@ class CounselorsScraper extends JournalScraperBase {
     return text
       .replace(/<[^>]+>/g, '') // Remove HTML tags
       .replace(/&nbsp;/g, ' ')
+      .replace(/&#8228;/g, ' ') // One dot leader → space
+      .replace(/&#\d+;/g, ' ')  // Other numeric HTML entities → space
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
+      .replace(/\u2024/g, ' ')  // One dot leader unicode → space
       .replace(/\s+/g, ' ')
       .trim();
   }
