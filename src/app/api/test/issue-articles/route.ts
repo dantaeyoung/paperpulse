@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
+import { getPdfUrl } from '@/lib/supabase/storage';
 import { getScraper, JournalArticle } from '@/lib/scrapers/journal-base';
-import { existsSync } from 'fs';
-import path from 'path';
 import '@/lib/scrapers/counselors';
 
 interface CachedArticle {
@@ -181,15 +180,6 @@ export async function GET(request: NextRequest) {
     // Merge website articles with database status
     const unifiedArticles = websiteArticles.map(article => {
       const dbPaper = dbPapers[article.id];
-      let localPdfUrl: string | null = null;
-
-      // Check if PDF exists locally
-      if (dbPaper?.hasFullText) {
-        const pdfPath = path.join(process.cwd(), 'public', 'pdfs', scraperKey, `${article.id}.pdf`);
-        if (existsSync(pdfPath)) {
-          localPdfUrl = `/pdfs/${scraperKey}/${article.id}.pdf`;
-        }
-      }
 
       return {
         id: article.id,
@@ -206,7 +196,8 @@ export async function GET(request: NextRequest) {
         dbPaperId: dbPaper?.id || null,
         hasFullText: dbPaper?.hasFullText || false,
         fullTextLength: dbPaper?.fullTextLength || 0,
-        localPdfUrl,
+        // Storage URL (only if paper has full text extracted)
+        storagePdfUrl: dbPaper?.hasFullText ? getPdfUrl(scraperKey, article.id) : null,
       };
     });
 

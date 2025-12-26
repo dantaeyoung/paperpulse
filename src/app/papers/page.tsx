@@ -19,7 +19,7 @@ interface Paper {
   isScraped: boolean;
   hasFullText: boolean;
   fullTextLength: number;
-  localPdfUrl: string | null;
+  storagePdfUrl: string | null;
   hasExtraction?: boolean;
 }
 
@@ -520,9 +520,9 @@ export default function AllPapersPage() {
                           {paper.hasExtraction && (
                             <span className="text-purple-400" title="AI 분석 완료">🤖</span>
                           )}
-                          {paper.localPdfUrl && (
+                          {paper.storagePdfUrl && (
                             <a
-                              href={paper.localPdfUrl}
+                              href={paper.storagePdfUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-2 py-0.5 bg-red-600 hover:bg-red-700 rounded text-xs"

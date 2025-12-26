@@ -15,7 +15,7 @@ interface Paper {
   isScraped: boolean;
   hasFullText: boolean;
   fullTextLength: number;
-  localPdfUrl: string | null;
+  storagePdfUrl: string | null;
   // Optional fields that may exist on some paper types
   scraperKey?: string;
   issueId?: string;
@@ -80,7 +80,7 @@ export default function PaperDetailModal({
             fullText: data.paper.fullText,
             hasFullText: data.paper.hasFullText,
             fullTextLength: data.paper.fullTextLength,
-            localPdfUrl: data.paper.localPdfUrl,
+            storagePdfUrl: data.paper.storagePdfUrl,
             isScraped: data.paper.isScraped,
             journal: data.paper.journal || journal,
             extraction: data.paper.extraction || null,
@@ -126,7 +126,7 @@ export default function PaperDetailModal({
             fullText: detailData.paper.fullText,
             hasFullText: detailData.paper.hasFullText,
             fullTextLength: detailData.paper.fullTextLength,
-            localPdfUrl: detailData.paper.localPdfUrl,
+            storagePdfUrl: detailData.paper.storagePdfUrl,
             isScraped: true,
           };
           setPaperDetail(updatedPaper);
@@ -138,7 +138,7 @@ export default function PaperDetailModal({
               isScraped: true,
               hasFullText: data.extractedTextLength > 0,
               fullTextLength: data.extractedTextLength || 0,
-              localPdfUrl: data.localPdfUrl || null,
+              storagePdfUrl: data.pdfUrl || null,
             });
           }
         }
@@ -237,9 +237,9 @@ export default function PaperDetailModal({
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3 mb-6">
-            {paperDetail?.localPdfUrl ? (
+            {paperDetail?.storagePdfUrl ? (
               <a
-                href={paperDetail.localPdfUrl}
+                href={paperDetail.storagePdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-medium"

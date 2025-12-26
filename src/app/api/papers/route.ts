@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
-import { existsSync } from 'fs';
-import path from 'path';
+import { getPdfUrl } from '@/lib/supabase/storage';
 
 interface CachedArticle {
   id: string;
@@ -97,7 +96,7 @@ export async function GET(request: NextRequest) {
       isScraped: boolean;
       hasFullText: boolean;
       fullTextLength: number;
-      localPdfUrl: string | null;
+      storagePdfUrl: string | null;
       hasExtraction: boolean;
     }[] = [];
 
@@ -107,15 +106,6 @@ export async function GET(request: NextRequest) {
 
       for (const article of articles) {
         const scraped = scrapedMap.get(String(article.id));
-        let localPdfUrl: string | null = null;
-
-        // Check if PDF exists locally
-        if (scraped?.hasFullText) {
-          const pdfPath = path.join(process.cwd(), 'public', 'pdfs', cache.scraper_key, `${article.id}.pdf`);
-          if (existsSync(pdfPath)) {
-            localPdfUrl = `/pdfs/${cache.scraper_key}/${article.id}.pdf`;
-          }
-        }
 
         allPapers.push({
           id: article.id,
@@ -133,7 +123,7 @@ export async function GET(request: NextRequest) {
           isScraped: !!scraped,
           hasFullText: scraped?.hasFullText || false,
           fullTextLength: scraped?.fullTextLength || 0,
-          localPdfUrl,
+          storagePdfUrl: scraped?.hasFullText ? getPdfUrl(cache.scraper_key, article.id) : null,
           hasExtraction: scraped?.dbId ? extractedPaperIds.has(scraped.dbId) : false,
         });
       }

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
+import { uploadPdf, getPdfUrl } from '@/lib/supabase/storage';
 import { getScraper, getAllScraperKeys } from '@/lib/scrapers/journal-base';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
 // Import scrapers to register them
 import '@/lib/scrapers/counselors';
 
@@ -142,15 +140,9 @@ export async function GET(request: NextRequest) {
                             (uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46); // %PDF
 
               if (isPdf && uint8Array.length > 100) {
-                // Save PDF to local file
-                const pdfDir = path.join(process.cwd(), 'public', 'pdfs', scraperKey || 'unknown');
-                if (!existsSync(pdfDir)) {
-                  await mkdir(pdfDir, { recursive: true });
-                }
-                const pdfFileName = `${article.id}.pdf`;
-                const pdfPath = path.join(pdfDir, pdfFileName);
-                await writeFile(pdfPath, Buffer.from(buffer));
-                onProgress(`✓ Saved PDF: /pdfs/${scraperKey}/${pdfFileName}`);
+                // Upload PDF to Supabase Storage
+                const storageUrl = await uploadPdf(scraperKey!, article.id, buffer);
+                onProgress(`✓ Uploaded PDF: ${storageUrl}`);
 
                 // Extract text
                 const { extractText: extractPdfText } = await import('unpdf');
@@ -240,7 +232,7 @@ export async function GET(request: NextRequest) {
             issue: a.issue,
             url: a.url,
             pdfUrl: a.pdfUrl,
-            localPdfUrl: text.length > 0 ? `/pdfs/${scraperKey}/${a.id}.pdf` : null,
+            storagePdfUrl: text.length > 0 ? getPdfUrl(scraperKey!, a.id) : null,
             hasExtractedText: text.length > 0,
             extractedTextLength: text.length,
             // Include first 500 chars of extracted text for preview

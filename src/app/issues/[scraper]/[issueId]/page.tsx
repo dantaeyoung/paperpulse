@@ -17,7 +17,7 @@ interface Article {
   isScraped: boolean;
   hasFullText: boolean;
   fullTextLength: number;
-  localPdfUrl: string | null;
+  storagePdfUrl: string | null;
   dbPaperId?: string | null;
 }
 
@@ -194,7 +194,7 @@ export default function IssuePage({ params }: PageProps) {
                 isScraped: true,
                 hasFullText: data.extractedTextLength > 0,
                 fullTextLength: data.extractedTextLength || 0,
-                localPdfUrl: data.localPdfUrl || null,
+                storagePdfUrl: data.pdfUrl || null,
               }
             : a
         ));
@@ -726,9 +726,9 @@ export default function IssuePage({ params }: PageProps) {
                         Scrape
                       </button>
                     )}
-                    {article.localPdfUrl && (
+                    {article.storagePdfUrl && (
                       <a
-                        href={article.localPdfUrl}
+                        href={article.storagePdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-red-400 hover:text-red-300 text-xs px-2 py-1 bg-red-900/30 rounded"

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
-import { existsSync } from 'fs';
-import path from 'path';
+import { getPdfUrl } from '@/lib/supabase/storage';
 
 interface CachedArticle {
   id: string;
@@ -77,14 +76,10 @@ export async function GET(
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
 
-    // Check for local PDF
-    let localPdfUrl: string | null = null;
-    if (scraperKey) {
-      const pdfPath = path.join(process.cwd(), 'public', 'pdfs', scraperKey, `${paperId}.pdf`);
-      if (existsSync(pdfPath)) {
-        localPdfUrl = `/pdfs/${scraperKey}/${paperId}.pdf`;
-      }
-    }
+    // Generate storage PDF URL if paper has full text
+    const storagePdfUrl = (scraperKey && scrapedPaper?.full_text)
+      ? getPdfUrl(scraperKey, paperId)
+      : null;
 
     // Look for AI extraction from issue_summaries
     // (extraction column on papers table may not exist)
@@ -123,7 +118,7 @@ export async function GET(
       hasFullText: !!scrapedPaper?.full_text,
       fullTextLength: scrapedPaper?.full_text?.length || 0,
       fullText: scrapedPaper?.full_text || null,
-      localPdfUrl,
+      storagePdfUrl,
       extraction,
     };
 

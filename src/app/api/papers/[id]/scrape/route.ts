@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
+import { uploadPdf, getPdfUrl } from '@/lib/supabase/storage';
 import { getScraper } from '@/lib/scrapers/journal-base';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
 import '@/lib/scrapers/counselors';
 
 interface CachedArticle {
@@ -94,14 +92,9 @@ export async function POST(
                       (uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46);
 
         if (isPdf && uint8Array.length > 100) {
-          // Save PDF locally
-          const pdfDir = path.join(process.cwd(), 'public', 'pdfs', scraperKey);
-          if (!existsSync(pdfDir)) {
-            await mkdir(pdfDir, { recursive: true });
-          }
-          const pdfPath = path.join(pdfDir, `${paperId}.pdf`);
-          await writeFile(pdfPath, Buffer.from(buffer));
-          console.log(`[scrape] Saved PDF to ${pdfPath}`);
+          // Upload PDF to Supabase Storage
+          const storageUrl = await uploadPdf(scraperKey, paperId, buffer);
+          console.log(`[scrape] Uploaded PDF to ${storageUrl}`);
 
           // Extract text
           const { extractText } = await import('unpdf');
@@ -167,7 +160,7 @@ export async function POST(
       success: true,
       paperId,
       extractedTextLength: extractedText.length,
-      localPdfUrl: extractedText.length > 0 ? `/pdfs/${scraperKey}/${paperId}.pdf` : null,
+      pdfUrl: extractedText.length > 0 ? getPdfUrl(scraperKey, paperId) : null,
     });
 
   } catch (error) {
