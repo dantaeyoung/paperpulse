@@ -26,6 +26,7 @@ export default function IssuesPage() {
   const [journals, setJournals] = useState<JournalGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchingJournal, setFetchingJournal] = useState<string | null>(null);
+  const [fetchProgress, setFetchProgress] = useState<string>('');
 
   async function fetchIssues() {
     try {
@@ -47,22 +48,37 @@ export default function IssuesPage() {
 
   async function handleFetchJournalIssues(scraperKey: string) {
     setFetchingJournal(scraperKey);
+    setFetchProgress('Loading issue list...');
     try {
       const currentYear = new Date().getFullYear();
-      const res = await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&year=${currentYear}`);
+      const res = await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&year=${currentYear}&refresh=true`);
       if (res.ok) {
         const data = await res.json();
-        // Fetch each issue to populate the cache
-        for (const issue of data.issues || []) {
+        const issues = data.issues || [];
+
+        // Fetch each issue with delay to avoid rate limiting
+        for (let i = 0; i < issues.length; i++) {
+          const issue = issues[i];
+          setFetchProgress(`Fetching issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})...`);
+
           await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&issue=${issue.id}`);
+
+          // Add 1 second delay between requests to avoid rate limiting
+          if (i < issues.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
+
+        setFetchProgress('Done!');
         // Refresh the page data
         await fetchIssues();
       }
     } catch (err) {
       console.error('Failed to fetch journal issues:', err);
+      setFetchProgress('Error fetching issues');
     } finally {
       setFetchingJournal(null);
+      setTimeout(() => setFetchProgress(''), 2000);
     }
   }
 
@@ -91,17 +107,22 @@ export default function IssuesPage() {
                   <h2 className="font-semibold text-lg text-white">{journal.name}</h2>
                   <p className="text-sm text-gray-500">{journal.issues.length} issues cached</p>
                 </div>
-                <button
-                  onClick={() => handleFetchJournalIssues(journal.scraperKey)}
-                  disabled={fetchingJournal === journal.scraperKey}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {fetchingJournal === journal.scraperKey
-                    ? 'Fetching...'
-                    : journal.issues.length === 0
-                      ? 'Fetch Issues'
-                      : 'Refetch'}
-                </button>
+                <div className="flex items-center gap-3">
+                  {fetchingJournal === journal.scraperKey && fetchProgress && (
+                    <span className="text-sm text-gray-400">{fetchProgress}</span>
+                  )}
+                  <button
+                    onClick={() => handleFetchJournalIssues(journal.scraperKey)}
+                    disabled={fetchingJournal === journal.scraperKey}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {fetchingJournal === journal.scraperKey
+                      ? 'Fetching...'
+                      : journal.issues.length === 0
+                        ? 'Fetch Issues'
+                        : 'Refetch'}
+                  </button>
+                </div>
               </div>
               {journal.issues.length === 0 ? (
                 <div className="p-4 text-gray-500 text-sm">
