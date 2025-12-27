@@ -386,7 +386,7 @@ export default function IssueContent({ scraper, issueId, compact = false, showNa
                   )}
                 </div>
               )}
-              <div className={`prose prose-invert prose-sm max-w-none ${compact ? 'max-h-64 overflow-y-auto' : ''}`}>
+              <div className="prose prose-invert prose-sm max-w-none">
                 <ReactMarkdown
                   components={{
                     h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-white">{children}</h1>,
