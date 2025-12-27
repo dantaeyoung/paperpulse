@@ -160,10 +160,36 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Save to database if requested
-      if (save) {
-        const supabase = createServerClient();
+      // Cache issue articles (always cache when fetching an issue)
+      const articlesToCache = articles.map(a => ({
+        id: a.id,
+        title: a.title,
+        authors: a.authors,
+        year: a.year,
+        volume: a.volume,
+        issue: a.issue,
+        paperNumber: a.paperNumber,
+        url: a.url,
+        pdfUrl: a.pdfUrl,
+      }));
 
+      await supabase
+        .from('issue_cache')
+        .upsert({
+          scraper_key: scraperKey,
+          issue_id: issueId,
+          journal_name: scraper.name,
+          issue_info: { year: issueInfo.year, volume: issueInfo.volume, issue: issueInfo.issue },
+          articles: articlesToCache,
+          cached_at: new Date().toISOString(),
+        }, {
+          onConflict: 'scraper_key,issue_id',
+        });
+
+      onProgress(`Cached ${articles.length} articles to issue_cache`);
+
+      // Save to papers table if requested
+      if (save) {
         // Get or create source for this journal
         let { data: source } = await supabase
           .from('sources')
@@ -212,7 +238,7 @@ export async function GET(request: NextRequest) {
           if (!insertError) savedCount++;
         }
 
-        onProgress(`Saved ${savedCount}/${articles.length} articles to database`);
+        onProgress(`Saved ${savedCount}/${articles.length} articles to papers table`);
       }
 
       return NextResponse.json({
