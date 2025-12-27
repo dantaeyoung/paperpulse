@@ -91,15 +91,17 @@ export default function IssuesPage() {
                   <h2 className="font-semibold text-lg text-white">{journal.name}</h2>
                   <p className="text-sm text-gray-500">{journal.issues.length} issues cached</p>
                 </div>
-                {journal.issues.length === 0 && (
-                  <button
-                    onClick={() => handleFetchJournalIssues(journal.scraperKey)}
-                    disabled={fetchingJournal === journal.scraperKey}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    {fetchingJournal === journal.scraperKey ? 'Fetching...' : 'Fetch Issues'}
-                  </button>
-                )}
+                <button
+                  onClick={() => handleFetchJournalIssues(journal.scraperKey)}
+                  disabled={fetchingJournal === journal.scraperKey}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  {fetchingJournal === journal.scraperKey
+                    ? 'Fetching...'
+                    : journal.issues.length === 0
+                      ? 'Fetch Issues'
+                      : 'Refetch'}
+                </button>
               </div>
               {journal.issues.length === 0 ? (
                 <div className="p-4 text-gray-500 text-sm">
