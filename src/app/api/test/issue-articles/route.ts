@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/client';
 import { getPdfUrl } from '@/lib/supabase/storage';
 import { getScraper, JournalArticle } from '@/lib/scrapers/journal-base';
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 interface CachedArticle {
   id: string;

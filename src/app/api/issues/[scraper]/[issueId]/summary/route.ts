@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/client';
 import { getScraper } from '@/lib/scrapers/journal-base';
 import { getIssueSummaryService, computeIssueStatistics, PaperExtraction, CitationMap } from '@/lib/ai/issue-summary';
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 interface RouteParams {
   params: Promise<{

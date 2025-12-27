@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
 import { getScraper } from '@/lib/scrapers/journal-base';
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 // Quick check for new issues only (doesn't re-fetch everything)
 export async function GET(request: NextRequest) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/client';
 import { getAllScraperKeys, getScraper } from '@/lib/scrapers/journal-base';
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 export async function GET() {
   const supabase = createServerClient();

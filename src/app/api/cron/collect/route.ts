@@ -5,6 +5,7 @@ import { getOpenAlexScraper, OpenAlexPaper } from '@/lib/scrapers/openalex';
 import { getScraper, JournalArticle } from '@/lib/scrapers/journal-base';
 // Import scrapers to register them
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 // Verify cron secret for security
 function verifyCronSecret(request: NextRequest): boolean {

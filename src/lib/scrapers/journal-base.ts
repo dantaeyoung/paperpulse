@@ -38,16 +38,24 @@ export abstract class JournalScraperBase {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  protected async fetchWithRetry(url: string, retries = 3): Promise<Response> {
+  protected async fetchWithRetry(url: string, options?: RequestInit, retries = 3): Promise<Response> {
+    const defaultHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    };
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options?.headers,
+      },
+    };
+
     for (let i = 0; i < retries; i++) {
       try {
-        const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-          },
-        });
+        const res = await fetch(url, fetchOptions);
         if (res.ok) return res;
         console.warn(`Fetch attempt ${i + 1} failed with status ${res.status}`);
       } catch (err) {

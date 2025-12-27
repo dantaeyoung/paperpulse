@@ -4,6 +4,7 @@ import { getAllScraperKeys } from '@/lib/scrapers/journal-base';
 import { existsSync } from 'fs';
 import path from 'path';
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 // Get scraped papers with filtering and stats
 export async function GET(request: NextRequest) {

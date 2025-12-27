@@ -4,6 +4,7 @@ import { uploadPdf, getPdfUrl } from '@/lib/supabase/storage';
 import { getScraper, getAllScraperKeys } from '@/lib/scrapers/journal-base';
 // Import scrapers to register them
 import '@/lib/scrapers/counselors';
+import '@/lib/scrapers/familytherapy';
 
 export async function GET(request: NextRequest) {
   const scraperKey = request.nextUrl.searchParams.get('scraper');
