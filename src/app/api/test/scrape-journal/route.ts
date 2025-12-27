@@ -178,13 +178,20 @@ export async function GET(request: NextRequest) {
         pdfUrl: a.pdfUrl,
       }));
 
+      // Get issue info from articles if not provided by scraper-specific method
+      const finalIssueInfo = {
+        year: issueInfo.year || articles[0]?.year || '',
+        volume: issueInfo.volume || articles[0]?.volume || '',
+        issue: issueInfo.issue || articles[0]?.issue || '',
+      };
+
       await supabase
         .from('issue_cache')
         .upsert({
           scraper_key: scraperKey,
           issue_id: issueId,
           journal_name: scraper.name,
-          issue_info: { year: issueInfo.year, volume: issueInfo.volume, issue: issueInfo.issue },
+          issue_info: finalIssueInfo,
           articles: articlesToCache,
           cached_at: new Date().toISOString(),
         }, {
