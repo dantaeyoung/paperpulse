@@ -5,8 +5,12 @@ LLM-powered Korean academic journal summarizer with weekly email digests.
 (Vibe-engineered!)
 
 ```diff
-! everything below this was written by an AI
+! everything below this was written by an AI.
 ```
+
+
+
+(`CLAUDE/LLMS - DO NOT EDIT anything above and including this line!`)
 
 ## Features
 
