@@ -30,6 +30,9 @@ export default function IssuesPage() {
   const [fetchingJournal, setFetchingJournal] = useState<string | null>(null);
   const [fetchProgress, setFetchProgress] = useState<string>('');
 
+  // Mobile pane state: 0 = journals, 1 = issues, 2 = content
+  const [mobilePane, setMobilePane] = useState(0);
+
   async function fetchIssues() {
     try {
       const res = await fetch('/api/issues');
@@ -125,15 +128,48 @@ export default function IssuesPage() {
     );
   }
 
+  // Handle journal selection - on mobile, slide to issues pane
+  const handleSelectJournal = (scraperKey: string) => {
+    setSelectedJournal(scraperKey);
+    setSelectedIssue(null);
+    setMobilePane(1); // Slide to issues
+  };
+
+  // Handle issue selection - on mobile, slide to content pane
+  const handleSelectIssue = (issueId: string) => {
+    setSelectedIssue(issueId);
+    setMobilePane(2); // Slide to content
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-950">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-800">
+      {/* Header - Desktop */}
+      <div className="hidden md:block px-4 py-3 border-b border-gray-800">
         <h1 className="text-lg font-semibold text-white">Journal Browser</h1>
       </div>
 
-      {/* Three column layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Header - Mobile with back button */}
+      <div className="md:hidden px-4 py-3 border-b border-gray-800 flex items-center gap-3">
+        {mobilePane > 0 && (
+          <button
+            onClick={() => setMobilePane(mobilePane - 1)}
+            className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+          >
+            <span>←</span>
+            <span className="text-sm">
+              {mobilePane === 1 ? 'Journals' : 'Issues'}
+            </span>
+          </button>
+        )}
+        <h1 className="text-lg font-semibold text-white flex-1">
+          {mobilePane === 0 && 'Journals'}
+          {mobilePane === 1 && (selectedJournalData?.name || 'Issues')}
+          {mobilePane === 2 && `Vol.${selectedJournalData?.issues.find(i => i.issue_id === selectedIssue)?.issue_info.volume || '?'}`}
+        </h1>
+      </div>
+
+      {/* Three column layout - Desktop */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Column 1: Journals */}
         <div className="w-64 border-r border-gray-800 flex flex-col">
           <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -143,10 +179,7 @@ export default function IssuesPage() {
             {journals.map((journal) => (
               <button
                 key={journal.scraperKey}
-                onClick={() => {
-                  setSelectedJournal(journal.scraperKey);
-                  setSelectedIssue(null);
-                }}
+                onClick={() => handleSelectJournal(journal.scraperKey)}
                 className={`w-full text-left px-3 py-2 border-b border-gray-800/50 transition-colors ${
                   selectedJournal === journal.scraperKey
                     ? 'bg-blue-600 text-white'
@@ -193,7 +226,7 @@ export default function IssuesPage() {
               selectedJournalData?.issues.map((issue) => (
                 <button
                   key={issue.issue_id}
-                  onClick={() => setSelectedIssue(issue.issue_id)}
+                  onClick={() => handleSelectIssue(issue.issue_id)}
                   className={`w-full text-left px-3 py-2 border-b border-gray-800/50 transition-colors ${
                     selectedIssue === issue.issue_id
                       ? 'bg-blue-600 text-white'
@@ -227,6 +260,97 @@ export default function IssuesPage() {
               Select an issue
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Mobile sliding panes */}
+      <div className="md:hidden flex-1 overflow-hidden relative">
+        <div
+          className="absolute inset-0 flex transition-transform duration-300 ease-in-out"
+          style={{ transform: `translateX(-${mobilePane * 100}%)` }}
+        >
+          {/* Mobile Pane 1: Journals */}
+          <div className="w-full flex-shrink-0 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              {journals.map((journal) => (
+                <button
+                  key={journal.scraperKey}
+                  onClick={() => handleSelectJournal(journal.scraperKey)}
+                  className="w-full text-left px-4 py-3 border-b border-gray-800/50 transition-colors text-gray-300 hover:bg-gray-800/50 flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-medium">{journal.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {journal.issues.length} issues
+                      {fetchingJournal === journal.scraperKey && fetchProgress && (
+                        <span className="ml-2">({fetchProgress})</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-gray-500">→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile Pane 2: Issues */}
+          <div className="w-full flex-shrink-0 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              {selectedJournalData?.issues.length === 0 ? (
+                <div className="p-4 text-sm text-gray-500">
+                  No issues cached.
+                </div>
+              ) : (
+                selectedJournalData?.issues.map((issue) => (
+                  <button
+                    key={issue.issue_id}
+                    onClick={() => handleSelectIssue(issue.issue_id)}
+                    className="w-full text-left px-4 py-3 border-b border-gray-800/50 transition-colors text-gray-300 hover:bg-gray-800/50 flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-medium">
+                        Vol.{issue.issue_info.volume} No.{issue.issue_info.issue}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {issue.issue_info.year} · {issue.article_count} articles
+                        {issue.has_summary && ' · AI Summary'}
+                      </div>
+                    </div>
+                    <span className="text-gray-500">→</span>
+                  </button>
+                ))
+              )}
+            </div>
+            {/* Refetch button */}
+            {selectedJournal && (
+              <div className="p-3 border-t border-gray-800">
+                <button
+                  onClick={() => handleFetchJournalIssues(selectedJournal)}
+                  disabled={fetchingJournal === selectedJournal}
+                  className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:cursor-wait text-gray-300 rounded text-sm font-medium transition-colors"
+                >
+                  {fetchingJournal === selectedJournal ? 'Fetching...' : 'Refetch Issues'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Pane 3: Issue Content */}
+          <div className="w-full flex-shrink-0 flex flex-col overflow-hidden">
+            {selectedJournal && selectedIssue ? (
+              <IssueContent
+                key={`mobile-${selectedJournal}-${selectedIssue}`}
+                scraper={selectedJournal}
+                issueId={selectedIssue}
+                compact={true}
+                showNavigation={false}
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                Select an issue
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
