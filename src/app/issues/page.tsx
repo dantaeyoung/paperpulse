@@ -49,6 +49,12 @@ export default function IssuesPage() {
   async function handleFetchJournalIssues(scraperKey: string) {
     setFetchingJournal(scraperKey);
     setFetchProgress('Loading issue list...');
+
+    // Clear existing issues for this journal immediately
+    setJournals(prev => prev.map(j =>
+      j.scraperKey === scraperKey ? { ...j, issues: [] } : j
+    ));
+
     try {
       // Fetch issues from 2015 to current year (~10 years of issues)
       const currentYear = new Date().getFullYear();
@@ -61,27 +67,55 @@ export default function IssuesPage() {
       }
 
       const data = await res.json();
-      const issues = data.issues || [];
+      const issuesToFetch = data.issues || [];
 
       // Fetch each issue with delay to avoid rate limiting
-      for (let i = 0; i < issues.length; i++) {
-        const issue = issues[i];
-        setFetchProgress(`Fetching issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})...`);
+      for (let i = 0; i < issuesToFetch.length; i++) {
+        const issue = issuesToFetch[i];
+        setFetchProgress(`Fetching issue ${i + 1}/${issuesToFetch.length} (Vol.${issue.volume} No.${issue.issue})...`);
 
         await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&issue=${issue.id}`);
 
+        // Add the fetched issue to the display immediately
+        setJournals(prev => prev.map(j => {
+          if (j.scraperKey !== scraperKey) return j;
+          // Add new issue if not already present
+          const exists = j.issues.some(existing => existing.issue_id === issue.id);
+          if (exists) return j;
+          return {
+            ...j,
+            issues: [...j.issues, {
+              issue_id: issue.id,
+              journal_name: j.name,
+              issue_info: { year: issue.year, volume: issue.volume, issue: issue.issue },
+              article_count: 0, // Will be updated on final refresh
+              has_summary: false,
+              cached_at: new Date().toISOString(),
+            }].sort((a, b) => {
+              // Sort by year desc, volume desc, issue desc
+              const yearDiff = parseInt(b.issue_info.year || '0', 10) - parseInt(a.issue_info.year || '0', 10);
+              if (yearDiff !== 0) return yearDiff;
+              const volDiff = parseInt(b.issue_info.volume || '0', 10) - parseInt(a.issue_info.volume || '0', 10);
+              if (volDiff !== 0) return volDiff;
+              return parseInt(b.issue_info.issue || '0', 10) - parseInt(a.issue_info.issue || '0', 10);
+            }),
+          };
+        }));
+
         // Add 1 second delay between requests to avoid rate limiting
-        if (i < issues.length - 1) {
+        if (i < issuesToFetch.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
       setFetchProgress('Done!');
-      // Refresh the page data
+      // Final refresh to get accurate article counts
       await fetchIssues();
     } catch (err) {
       console.error('Failed to fetch journal issues:', err);
       setFetchProgress('Error fetching issues');
+      // Refresh to restore any cached data
+      await fetchIssues();
     } finally {
       setFetchingJournal(null);
       setTimeout(() => setFetchProgress(''), 2000);
