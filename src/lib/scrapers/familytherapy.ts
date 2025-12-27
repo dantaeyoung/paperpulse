@@ -79,43 +79,40 @@ class FamilyTherapyScraper extends JournalScraperBase {
   }
 
   async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
-    // Fetch all articles and extract unique issues
-    const issueMap = new Map<string, JournalIssue>();
-    let page = 1;
-    const pageSize = 50;
-    let totalFetched = 0;
+    // Fetch all issues from the volume list endpoint
+    const url = `${this.baseUrl}/journal/volume/extensionsAjax/${this.schlrPoiNum}/${this.pubcNum}`;
 
-    while (true) {
-      const { articles, totalCount } = await this.searchArticles({ page, pageSize });
+    console.log(`[familytherapy] Fetching issue list from ${url}`);
 
-      if (articles.length === 0) break;
+    const res = await this.fetchWithRetry(url);
+    const data = await res.json();
 
-      for (const article of articles) {
-        const issueId = String(article.PUBC_VLM_NUMB_NUM);
-        const year = article.ISSU_YR;
-        const yearNum = parseInt(year, 10);
-
-        // Only include issues within the requested year range
-        if (yearNum >= startYear && yearNum <= endYear && !issueMap.has(issueId)) {
-          issueMap.set(issueId, {
-            id: issueId,
-            year,
-            volume: article.PUBC_VLM_NAME || '',
-            issue: article.PUBC_NUMB_NAME || '',
-          });
-        }
-      }
-
-      totalFetched += articles.length;
-
-      // Check if we've fetched all articles
-      if (totalFetched >= totalCount) break;
-
-      page++;
-      await this.delay(500); // Rate limiting
+    if (!data?.data?.resultList) {
+      console.log(`[familytherapy] No issues found`);
+      return [];
     }
 
-    const issues = Array.from(issueMap.values());
+    const issues: JournalIssue[] = [];
+
+    for (const item of data.data.resultList) {
+      // Parse volume and issue from vlmNumbName like "가족과 가족치료 제33권 제3호"
+      const { volume, issue } = this.parseVolumeInfo(item.vlmNumbName || '');
+
+      // Calculate year from volume (Vol.1 = 1993)
+      const volumeNum = parseInt(volume, 10);
+      const year = isNaN(volumeNum) ? '' : String(1992 + volumeNum);
+      const yearNum = parseInt(year, 10);
+
+      // Filter by year range
+      if (!isNaN(yearNum) && yearNum >= startYear && yearNum <= endYear) {
+        issues.push({
+          id: String(item.pubcVlmNumbNum),
+          year,
+          volume,
+          issue,
+        });
+      }
+    }
 
     // Sort by year desc, volume desc, issue desc
     issues.sort((a, b) => {
@@ -128,6 +125,19 @@ class FamilyTherapyScraper extends JournalScraperBase {
 
     console.log(`[familytherapy] Found ${issues.length} issues between ${startYear}-${endYear}`);
     return issues;
+  }
+
+  /**
+   * Parse volume and issue from strings like "가족과 가족치료 제33권 제3호"
+   */
+  private parseVolumeInfo(vlmNumbName: string): { volume: string; issue: string } {
+    const volMatch = vlmNumbName.match(/제(\d+)권/);
+    const issueMatch = vlmNumbName.match(/제(\d+)호/);
+
+    return {
+      volume: volMatch ? volMatch[1] : '',
+      issue: issueMatch ? issueMatch[1] : '',
+    };
   }
 
   async parseArticlesFromIssue(issueId: string, issueInfo: JournalIssue): Promise<JournalArticle[]> {
