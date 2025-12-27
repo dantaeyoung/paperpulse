@@ -50,29 +50,35 @@ export default function IssuesPage() {
     setFetchingJournal(scraperKey);
     setFetchProgress('Loading issue list...');
     try {
+      // Fetch issues from 2015 to current year (~10 years of issues)
       const currentYear = new Date().getFullYear();
-      const res = await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&year=${currentYear}&refresh=true`);
-      if (res.ok) {
-        const data = await res.json();
-        const issues = data.issues || [];
+      const startYear = currentYear - 10;
 
-        // Fetch each issue with delay to avoid rate limiting
-        for (let i = 0; i < issues.length; i++) {
-          const issue = issues[i];
-          setFetchProgress(`Fetching issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})...`);
-
-          await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&issue=${issue.id}`);
-
-          // Add 1 second delay between requests to avoid rate limiting
-          if (i < issues.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-
-        setFetchProgress('Done!');
-        // Refresh the page data
-        await fetchIssues();
+      // Single API call with year range
+      const res = await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&year=${currentYear}&startYear=${startYear}&refresh=true`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch issue list');
       }
+
+      const data = await res.json();
+      const issues = data.issues || [];
+
+      // Fetch each issue with delay to avoid rate limiting
+      for (let i = 0; i < issues.length; i++) {
+        const issue = issues[i];
+        setFetchProgress(`Fetching issue ${i + 1}/${issues.length} (Vol.${issue.volume} No.${issue.issue})...`);
+
+        await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&issue=${issue.id}`);
+
+        // Add 1 second delay between requests to avoid rate limiting
+        if (i < issues.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      setFetchProgress('Done!');
+      // Refresh the page data
+      await fetchIssues();
     } catch (err) {
       console.error('Failed to fetch journal issues:', err);
       setFetchProgress('Error fetching issues');

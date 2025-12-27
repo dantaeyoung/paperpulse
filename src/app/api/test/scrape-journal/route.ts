@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const issueId = request.nextUrl.searchParams.get('issue');
   const articleId = request.nextUrl.searchParams.get('article'); // Single article ID
   const year = request.nextUrl.searchParams.get('year');
+  const startYear = request.nextUrl.searchParams.get('startYear'); // Optional start year for range
   const extractText = request.nextUrl.searchParams.get('extract') === 'true';
   const save = request.nextUrl.searchParams.get('save') === 'true';
   const token = request.nextUrl.searchParams.get('token');
@@ -49,19 +50,21 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient();
 
   try {
-    // If year is specified but no issue, list all issues for that year
+    // If year is specified but no issue, list all issues for that year (or year range)
     if (year && !issueId) {
-      const yearNum = parseInt(year, 10);
+      const endYearNum = parseInt(year, 10);
+      const startYearNum = startYear ? parseInt(startYear, 10) : endYearNum;
+
+      // For single year, check cache
       let issues;
       let fromCache = false;
 
-      // Check cache first (unless refresh requested)
-      if (!refresh) {
+      if (startYearNum === endYearNum && !refresh) {
         const { data: cached } = await supabase
           .from('year_issues_cache')
           .select('issues, cached_at')
           .eq('scraper_key', scraperKey)
-          .eq('year', yearNum)
+          .eq('year', endYearNum)
           .single();
 
         if (cached?.issues) {
@@ -72,26 +75,28 @@ export async function GET(request: NextRequest) {
 
       // Fetch from website if no cache or refresh requested
       if (!issues) {
-        issues = await scraper.getIssues(yearNum, yearNum);
+        issues = await scraper.getIssues(startYearNum, endYearNum);
 
-        // Cache the results
-        await supabase
-          .from('year_issues_cache')
-          .upsert({
-            scraper_key: scraperKey,
-            year: yearNum,
-            journal_name: scraper.name,
-            issues,
-            cached_at: new Date().toISOString(),
-          }, {
-            onConflict: 'scraper_key,year',
-          });
+        // Cache only if single year request
+        if (startYearNum === endYearNum) {
+          await supabase
+            .from('year_issues_cache')
+            .upsert({
+              scraper_key: scraperKey,
+              year: endYearNum,
+              journal_name: scraper.name,
+              issues,
+              cached_at: new Date().toISOString(),
+            }, {
+              onConflict: 'scraper_key,year',
+            });
+        }
       }
 
       return NextResponse.json({
         scraper: scraperKey,
         journal: scraper.name,
-        year: yearNum,
+        year: startYearNum === endYearNum ? endYearNum : `${startYearNum}-${endYearNum}`,
         issues,
         fromCache,
         message: `Found ${issues.length} issues. Use ?scraper=${scraperKey}&issue=XXX to scrape a specific issue.`,
