@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 
 interface CachedIssue {
   issue_id: string;
@@ -22,9 +21,25 @@ interface JournalGroup {
   issues: CachedIssue[];
 }
 
+interface CachedArticle {
+  id: string;
+  title: string;
+  authors: string[];
+  year?: string;
+  volume?: string;
+  issue?: string;
+  paperNumber?: number;
+  url?: string;
+  pdfUrl?: string;
+}
+
 export default function IssuesPage() {
   const [journals, setJournals] = useState<JournalGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedJournal, setSelectedJournal] = useState<string | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  const [articles, setArticles] = useState<CachedArticle[]>([]);
+  const [loadingArticles, setLoadingArticles] = useState(false);
   const [fetchingJournal, setFetchingJournal] = useState<string | null>(null);
   const [fetchProgress, setFetchProgress] = useState<string>('');
 
@@ -46,6 +61,30 @@ export default function IssuesPage() {
     fetchIssues();
   }, []);
 
+  // Fetch articles when an issue is selected
+  useEffect(() => {
+    if (!selectedJournal || !selectedIssue) {
+      setArticles([]);
+      return;
+    }
+
+    async function fetchArticles() {
+      setLoadingArticles(true);
+      try {
+        const res = await fetch(`/api/test/issue-articles?scraper=${selectedJournal}&issue=${selectedIssue}`);
+        if (res.ok) {
+          const data = await res.json();
+          setArticles(data.articles || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch articles:', err);
+      } finally {
+        setLoadingArticles(false);
+      }
+    }
+    fetchArticles();
+  }, [selectedJournal, selectedIssue]);
+
   async function handleFetchJournalIssues(scraperKey: string) {
     setFetchingJournal(scraperKey);
     setFetchProgress('Loading issue list...');
@@ -56,11 +95,9 @@ export default function IssuesPage() {
     ));
 
     try {
-      // Fetch issues from 2015 to current year (~10 years of issues)
       const currentYear = new Date().getFullYear();
       const startYear = currentYear - 10;
 
-      // Single API call with year range
       const res = await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&year=${currentYear}&startYear=${startYear}&refresh=true`);
       if (!res.ok) {
         throw new Error('Failed to fetch issue list');
@@ -69,17 +106,14 @@ export default function IssuesPage() {
       const data = await res.json();
       const issuesToFetch = data.issues || [];
 
-      // Fetch each issue with delay to avoid rate limiting
       for (let i = 0; i < issuesToFetch.length; i++) {
         const issue = issuesToFetch[i];
-        setFetchProgress(`Fetching issue ${i + 1}/${issuesToFetch.length} (Vol.${issue.volume} No.${issue.issue})...`);
+        setFetchProgress(`${i + 1}/${issuesToFetch.length}`);
 
         await fetch(`/api/test/scrape-journal?scraper=${scraperKey}&issue=${issue.id}`);
 
-        // Add the fetched issue to the display immediately
         setJournals(prev => prev.map(j => {
           if (j.scraperKey !== scraperKey) return j;
-          // Add new issue if not already present
           const exists = j.issues.some(existing => existing.issue_id === issue.id);
           if (exists) return j;
           return {
@@ -88,11 +122,10 @@ export default function IssuesPage() {
               issue_id: issue.id,
               journal_name: j.name,
               issue_info: { year: issue.year, volume: issue.volume, issue: issue.issue },
-              article_count: 0, // Will be updated on final refresh
+              article_count: 0,
               has_summary: false,
               cached_at: new Date().toISOString(),
             }].sort((a, b) => {
-              // Sort by year desc, volume desc, issue desc
               const yearDiff = parseInt(b.issue_info.year || '0', 10) - parseInt(a.issue_info.year || '0', 10);
               if (yearDiff !== 0) return yearDiff;
               const volDiff = parseInt(b.issue_info.volume || '0', 10) - parseInt(a.issue_info.volume || '0', 10);
@@ -102,19 +135,16 @@ export default function IssuesPage() {
           };
         }));
 
-        // Add 1 second delay between requests to avoid rate limiting
         if (i < issuesToFetch.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
-      setFetchProgress('Done!');
-      // Final refresh to get accurate article counts
+      setFetchProgress('');
       await fetchIssues();
     } catch (err) {
       console.error('Failed to fetch journal issues:', err);
-      setFetchProgress('Error fetching issues');
-      // Refresh to restore any cached data
+      setFetchProgress('Error');
       await fetchIssues();
     } finally {
       setFetchingJournal(null);
@@ -122,85 +152,148 @@ export default function IssuesPage() {
     }
   }
 
+  const selectedJournalData = journals.find(j => j.scraperKey === selectedJournal);
+  const selectedIssueData = selectedJournalData?.issues.find(i => i.issue_id === selectedIssue);
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-gray-500">Loading issues...</div>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6 text-white">Journal Issues</h1>
+    <div className="h-screen flex flex-col bg-gray-950">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-800">
+        <h1 className="text-lg font-semibold text-white">Journal Browser</h1>
+      </div>
 
-      {journals.length === 0 ? (
-        <div className="bg-gray-900 rounded-lg border border-gray-800 p-8 text-center text-gray-500">
-          No journals found. Check that scrapers are registered.
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {journals.map((journal) => (
-            <div key={journal.scraperKey} className="bg-gray-900 rounded-lg border border-gray-800">
-              <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold text-lg text-white">{journal.name}</h2>
-                  <p className="text-sm text-gray-500">{journal.issues.length} issues cached</p>
-                </div>
-                <div className="flex items-center gap-3">
+      {/* Three column layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Column 1: Journals */}
+        <div className="w-64 border-r border-gray-800 flex flex-col">
+          <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Journals
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {journals.map((journal) => (
+              <button
+                key={journal.scraperKey}
+                onClick={() => {
+                  setSelectedJournal(journal.scraperKey);
+                  setSelectedIssue(null);
+                }}
+                className={`w-full text-left px-3 py-2 border-b border-gray-800/50 transition-colors ${
+                  selectedJournal === journal.scraperKey
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-800/50'
+                }`}
+              >
+                <div className="font-medium text-sm truncate">{journal.name}</div>
+                <div className={`text-xs ${selectedJournal === journal.scraperKey ? 'text-blue-200' : 'text-gray-500'}`}>
+                  {journal.issues.length} issues
                   {fetchingJournal === journal.scraperKey && fetchProgress && (
-                    <span className="text-sm text-gray-400">{fetchProgress}</span>
+                    <span className="ml-2">({fetchProgress})</span>
                   )}
-                  <button
-                    onClick={() => handleFetchJournalIssues(journal.scraperKey)}
-                    disabled={fetchingJournal === journal.scraperKey}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-wait text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    {fetchingJournal === journal.scraperKey
-                      ? 'Fetching...'
-                      : journal.issues.length === 0
-                        ? 'Fetch Issues'
-                        : 'Refetch'}
-                  </button>
                 </div>
-              </div>
-              {journal.issues.length === 0 ? (
-                <div className="p-4 text-gray-500 text-sm">
-                  No issues cached yet. Click &quot;Fetch Issues&quot; to get the latest issues.
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-800">
-                  {journal.issues.map((issue) => (
-                    <Link
-                      key={issue.issue_id}
-                      href={`/issues/${journal.scraperKey}/${issue.issue_id}`}
-                      className="flex items-center justify-between p-4 hover:bg-gray-800/50 transition-colors"
-                    >
-                      <div>
-                        <div className="font-medium text-white">
-                          Vol.{issue.issue_info.volume} No.{issue.issue_info.issue}
-                          <span className="text-gray-400 ml-2">({issue.issue_info.year})</span>
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {issue.article_count} articles
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {issue.has_summary && (
-                          <span className="px-2 py-1 bg-purple-900/50 text-purple-300 rounded text-xs">
-                            AI Summary
-                          </span>
-                        )}
-                        <span className="text-gray-500">→</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              </button>
+            ))}
+          </div>
+          {/* Refetch button at bottom */}
+          {selectedJournal && (
+            <div className="p-2 border-t border-gray-800">
+              <button
+                onClick={() => handleFetchJournalIssues(selectedJournal)}
+                disabled={fetchingJournal === selectedJournal}
+                className="w-full px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:cursor-wait text-gray-300 rounded text-xs font-medium transition-colors"
+              >
+                {fetchingJournal === selectedJournal ? 'Fetching...' : 'Refetch Issues'}
+              </button>
             </div>
-          ))}
+          )}
         </div>
-      )}
+
+        {/* Column 2: Issues */}
+        <div className="w-72 border-r border-gray-800 flex flex-col">
+          <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Issues {selectedJournalData && `(${selectedJournalData.issues.length})`}
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {!selectedJournal ? (
+              <div className="p-4 text-sm text-gray-500">Select a journal</div>
+            ) : selectedJournalData?.issues.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500">
+                No issues cached. Click &quot;Refetch Issues&quot; below.
+              </div>
+            ) : (
+              selectedJournalData?.issues.map((issue) => (
+                <button
+                  key={issue.issue_id}
+                  onClick={() => setSelectedIssue(issue.issue_id)}
+                  className={`w-full text-left px-3 py-2 border-b border-gray-800/50 transition-colors ${
+                    selectedIssue === issue.issue_id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-800/50'
+                  }`}
+                >
+                  <div className="font-medium text-sm">
+                    Vol.{issue.issue_info.volume} No.{issue.issue_info.issue}
+                  </div>
+                  <div className={`text-xs ${selectedIssue === issue.issue_id ? 'text-blue-200' : 'text-gray-500'}`}>
+                    {issue.issue_info.year} · {issue.article_count} articles
+                    {issue.has_summary && ' · AI Summary'}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Column 3: Articles */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center justify-between">
+            <span>
+              Articles {selectedIssueData && `(${articles.length})`}
+            </span>
+            {selectedIssue && (
+              <a
+                href={`/issues/${selectedJournal}/${selectedIssue}`}
+                className="text-blue-400 hover:text-blue-300 normal-case font-normal"
+              >
+                Open full view →
+              </a>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {!selectedIssue ? (
+              <div className="p-4 text-sm text-gray-500">Select an issue</div>
+            ) : loadingArticles ? (
+              <div className="p-4 text-sm text-gray-500">Loading articles...</div>
+            ) : articles.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500">No articles found</div>
+            ) : (
+              articles.map((article, idx) => (
+                <div
+                  key={article.id}
+                  className="px-4 py-3 border-b border-gray-800/50 hover:bg-gray-800/30"
+                >
+                  <div className="text-sm font-medium text-white leading-snug">
+                    {article.paperNumber && (
+                      <span className="text-gray-500 mr-2">{article.paperNumber}.</span>
+                    )}
+                    {article.title}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {article.authors?.join(', ')}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
