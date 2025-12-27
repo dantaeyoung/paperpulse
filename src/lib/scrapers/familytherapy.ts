@@ -10,10 +10,7 @@ import {
  * Published by 한국가족치료학회 (Korean Association of Family Therapy)
  *
  * This journal is hosted on Kyobo Scholar platform.
- * API endpoints:
- * - Journal info: /academy/journalExtensionsAjax/{schlrPoiNum}
- * - Volume list: /journal/volume/extensionsAjax/{schlrPoiNum}/{pubcNum}
- * - Article search: POST /external/scholarMainSearchAjax
+ * Uses POST /external/scholarMainSearchAjax with reSrchQry parameter
  */
 class FamilyTherapyScraper extends JournalScraperBase {
   readonly name = '가족과 가족치료';
@@ -24,73 +21,108 @@ class FamilyTherapyScraper extends JournalScraperBase {
   private readonly schlrPoiNum = '20369';  // Publisher ID
   private readonly pubcNum = '2651';        // Journal ID
 
-  // Cache for volume list
-  private volumeCache: Map<string, { year: string; volume: string; issue: string }> = new Map();
-
   /**
-   * Parse volume/issue info from vlmNumbName like "가족과 가족치료 제33권 제3호"
+   * Search for articles using Kyobo Scholar API
    */
-  private parseVolumeInfo(vlmNumbName: string): { year: string; volume: string; issue: string } {
-    const volMatch = vlmNumbName.match(/제(\d+)권/);
-    const issueMatch = vlmNumbName.match(/제(\d+)호/);
+  private async searchArticles(options: {
+    issueId?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}): Promise<{ articles: KyoboArticle[]; totalCount: number }> {
+    const { issueId, page = 1, pageSize = 50 } = options;
 
-    const volume = volMatch ? volMatch[1] : '';
-    const issue = issueMatch ? issueMatch[1] : '';
+    const url = `${this.baseUrl}/external/scholarMainSearchAjax`;
 
-    // Calculate year: Journal started in 1993 as Vol.1
-    // Vol.1 = 1993, Vol.33 = 2025
-    const year = volume ? String(1992 + parseInt(volume, 10)) : '';
+    // Use the actual request format from familytherapy.or.kr
+    const body = {
+      page: String(page),
+      pageRowCount: pageSize,
+      keyword: this.pubcNum,           // Journal ID: 2651
+      searchTarget: 'journalCd',
+      sqnc: 'startNo',
+      reSrchYsno: '',
+      reSrchTrgtCode: '',
+      reSearchTerm: '',
+      reSrchQry: '',
+      cmdtClstCode: '',
+      issuYr: '',
+      srchFldCode: '',
+      srchTypeCode: 'including',
+      schlrPoiNum: '',
+      pubcNum: '',
+      excludeSchlrCmdtcode: '',
+      section: '008',
+      init: false,
+      pubcVlmNumbNum: issueId || 'all',  // Specific issue or all
+    };
 
-    return { year, volume, issue };
-  }
+    console.log(`[familytherapy] Searching journal ${this.pubcNum}, issue: ${issueId || 'all'}, page ${page}`);
 
-  /**
-   * Fetch and cache the volume/issue list from Kyobo Scholar
-   */
-  private async fetchVolumeList(): Promise<void> {
-    if (this.volumeCache.size > 0) return;
+    const res = await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
 
-    const url = `${this.baseUrl}/journal/volume/extensionsAjax/${this.schlrPoiNum}/${this.pubcNum}`;
+    const data = await res.json();
 
-    try {
-      const res = await this.fetchWithRetry(url);
-      const data = await res.json();
-
-      if (data?.data?.resultList) {
-        for (const item of data.data.resultList) {
-          const pubcVlmNumbNum = String(item.pubcVlmNumbNum);
-          const info = this.parseVolumeInfo(item.vlmNumbName || '');
-          this.volumeCache.set(pubcVlmNumbNum, info);
-        }
-      }
-
-      console.log(`[familytherapy] Cached ${this.volumeCache.size} volume entries`);
-    } catch (err) {
-      console.error('[familytherapy] Failed to fetch volume list:', err);
+    if (!data?.data?.resultList) {
+      return { articles: [], totalCount: 0 };
     }
+
+    return {
+      articles: data.data.resultList as KyoboArticle[],
+      totalCount: data.data.totalCount || 0,
+    };
   }
 
   async getIssues(startYear: number, endYear: number): Promise<JournalIssue[]> {
-    await this.fetchVolumeList();
+    // Fetch all articles and extract unique issues
+    const issueMap = new Map<string, JournalIssue>();
+    let page = 1;
+    const pageSize = 50;
+    let totalFetched = 0;
 
-    const issues: JournalIssue[] = [];
+    while (true) {
+      const { articles, totalCount } = await this.searchArticles({ page, pageSize });
 
-    for (const [id, info] of this.volumeCache.entries()) {
-      const year = parseInt(info.year, 10);
-      if (!isNaN(year) && year >= startYear && year <= endYear) {
-        issues.push({
-          id,
-          year: info.year,
-          volume: info.volume,
-          issue: info.issue,
-        });
+      if (articles.length === 0) break;
+
+      for (const article of articles) {
+        const issueId = String(article.PUBC_VLM_NUMB_NUM);
+        const year = article.ISSU_YR;
+        const yearNum = parseInt(year, 10);
+
+        // Only include issues within the requested year range
+        if (yearNum >= startYear && yearNum <= endYear && !issueMap.has(issueId)) {
+          issueMap.set(issueId, {
+            id: issueId,
+            year,
+            volume: article.PUBC_VLM_NAME || '',
+            issue: article.PUBC_NUMB_NAME || '',
+          });
+        }
       }
+
+      totalFetched += articles.length;
+
+      // Check if we've fetched all articles
+      if (totalFetched >= totalCount) break;
+
+      page++;
+      await this.delay(500); // Rate limiting
     }
 
-    // Sort by year desc, then by issue desc
+    const issues = Array.from(issueMap.values());
+
+    // Sort by year desc, volume desc, issue desc
     issues.sort((a, b) => {
       const yearDiff = parseInt(b.year, 10) - parseInt(a.year, 10);
       if (yearDiff !== 0) return yearDiff;
+      const volDiff = parseInt(b.volume, 10) - parseInt(a.volume, 10);
+      if (volDiff !== 0) return volDiff;
       return parseInt(b.issue, 10) - parseInt(a.issue, 10);
     });
 
@@ -99,81 +131,39 @@ class FamilyTherapyScraper extends JournalScraperBase {
   }
 
   async parseArticlesFromIssue(issueId: string, issueInfo: JournalIssue): Promise<JournalArticle[]> {
-    await this.fetchVolumeList();
+    const { articles } = await this.searchArticles({ issueId, pageSize: 100 });
 
-    // Get issue info from cache if not provided
-    if (!issueInfo.year || !issueInfo.volume) {
-      const cached = this.volumeCache.get(issueId);
-      if (cached) {
-        issueInfo = { ...issueInfo, ...cached };
-      }
+    const result: JournalArticle[] = [];
+    let paperNumber = 1;
+
+    for (const item of articles) {
+      const authors = this.parseAuthors(item.ARTL_AUTR_HNGL_NAME || '');
+
+      const article: JournalArticle = {
+        id: item.SCHLR_CMDTCODE,
+        title: item.ARTL_NAME || item.ARTL_ENSN_NAME || '',
+        authors,
+        year: item.ISSU_YR || issueInfo.year,
+        volume: item.PUBC_VLM_NAME || issueInfo.volume,
+        issue: item.PUBC_NUMB_NAME || issueInfo.issue,
+        paperNumber: paperNumber++,
+        url: `${this.baseUrl}/article/external/detail/${this.schlrPoiNum}/${item.SCHLR_CMDTCODE}`,
+        pdfUrl: this.getPdfUrl(item.SCHLR_CMDTCODE, item.ARTL_NUM),
+      };
+
+      result.push(article);
     }
 
-    const url = `${this.baseUrl}/external/scholarMainSearchAjax`;
-    const body = {
-      keyword: issueId,
-      searchTarget: 'bookCd',
-      section: '008',
-      pageRowCount: 100,  // Get all articles in one request
-      page: 1,
-    };
-
-    console.log(`[familytherapy] Fetching articles for issue ${issueId}`);
-
-    try {
-      const res = await this.fetchWithRetry(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!data?.data?.resultList) {
-        console.log(`[familytherapy] No articles found for issue ${issueId}`);
-        return [];
-      }
-
-      const articles: JournalArticle[] = [];
-      let paperNumber = 1;
-
-      for (const item of data.data.resultList) {
-        // Parse authors from ARTL_AUTR_CARD_HNGL_NAME like "권혜영(Hyeyoung Kwon), 조은숙(Eunsuk Cho)"
-        const authors = this.parseAuthors(item.ARTL_AUTR_CARD_HNGL_NAME || item.ARTL_AUTR_HNGL_NAME || '');
-
-        const article: JournalArticle = {
-          id: item.SCHLR_CMDTCODE,  // Use the Kyobo Scholar code as ID
-          title: item.ARTL_NAME || item.ARTL_ENSN_NAME || '',
-          authors,
-          year: item.ISSU_YR || issueInfo.year,
-          volume: item.PUBC_VLM_NAME || issueInfo.volume,
-          issue: item.PUBC_NUMB_NAME || issueInfo.issue,
-          paperNumber: paperNumber++,
-          url: `${this.baseUrl}/article/external/detail/${this.schlrPoiNum}/${item.SCHLR_CMDTCODE}`,
-          pdfUrl: this.getPdfUrl(item.SCHLR_CMDTCODE, item.ARTL_NUM),
-        };
-
-        articles.push(article);
-      }
-
-      console.log(`[familytherapy] Parsed ${articles.length} articles from issue ${issueId}`);
-      return articles;
-    } catch (err) {
-      console.error(`[familytherapy] Failed to fetch articles for issue ${issueId}:`, err);
-      return [];
-    }
+    console.log(`[familytherapy] Parsed ${result.length} articles from issue ${issueId}`);
+    return result;
   }
 
   /**
-   * Parse authors from strings like "권혜영(Hyeyoung Kwon), 조은숙(Eunsuk Cho)"
-   * or "권혜영, 조은숙, 한현숙 외 1명"
+   * Parse authors from strings like "권혜영, 조은숙, 한현숙 외 1명"
    */
   private parseAuthors(authorStr: string): string[] {
     if (!authorStr) return [];
 
-    // Split by comma and clean each name
     const parts = authorStr.split(',');
     const authors: string[] = [];
 
@@ -195,13 +185,24 @@ class FamilyTherapyScraper extends JournalScraperBase {
   }
 
   getPdfUrl(schlrCmdtcode: string, artlNum?: string): string {
-    // Kyobo Scholar PDF access endpoint
-    // Note: This may require authentication or special handling
     if (artlNum) {
       return `${this.baseUrl}/file/view?downOrView=pdf&schlrCmdtcode=${schlrCmdtcode}&artlNum=${artlNum}&mmbrId=external&termlDvsnCode=P`;
     }
     return `${this.baseUrl}/article/external/detail/${this.schlrPoiNum}/${schlrCmdtcode}`;
   }
+}
+
+// Kyobo Scholar article response type
+interface KyoboArticle {
+  SCHLR_CMDTCODE: string;
+  ARTL_NAME: string;
+  ARTL_ENSN_NAME?: string;
+  ARTL_AUTR_HNGL_NAME: string;
+  ARTL_NUM: string;
+  ISSU_YR: string;
+  PUBC_VLM_NAME: string;
+  PUBC_NUMB_NAME: string;
+  PUBC_VLM_NUMB_NUM: string;
 }
 
 // Singleton instance
