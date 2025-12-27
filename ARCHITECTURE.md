@@ -30,10 +30,10 @@ Technical architecture and design decisions for 논문 다이제스트.
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Client Layer                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │  Home    │  │  Issue   │  │  Papers  │  │ User Dashboard   │ │
-│  │  Page    │  │  Browser │  │  Table   │  │ /u/[token]       │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
+│  ┌──────────┐  ┌──────────────┐  ┌────────┐  ┌───────────────┐  │
+│  │  Home    │  │Issue Browser │  │ Papers │  │User Dashboard │  │
+│  │  Page    │  │(3-col Miller)│  │ Table  │  │  /u/[token]   │  │
+│  └──────────┘  └──────────────┘  └────────┘  └───────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -151,6 +151,7 @@ article-summarizer/
 │   │   └── globals.css           # Global styles
 │   │
 │   ├── components/               # Reusable components
+│   │   ├── IssueContent.tsx      # Issue viewer with AI summary
 │   │   └── PaperDetailModal.tsx  # Paper preview modal
 │   │
 │   └── lib/                      # Core libraries
@@ -162,6 +163,7 @@ article-summarizer/
 │       ├── scrapers/
 │       │   ├── journal-base.ts   # Base scraper class
 │       │   ├── counselors.ts     # 한국상담학회지 scraper
+│       │   ├── familytherapy.ts  # 가족과 가족치료 scraper
 │       │   ├── kci-web.ts        # KCI web scraper
 │       │   └── openalex.ts       # OpenAlex API scraper
 │       └── supabase/
@@ -321,12 +323,13 @@ abstract class JournalScraperBase {
 ```typescript
 // Register a scraper
 registerScraper('counselors', () => new CounselorsScraper());
+registerScraper('familytherapy', () => new FamilyTherapyScraper());
 
 // Get a scraper
 const scraper = getScraper('counselors');
 
 // List all scrapers
-const keys = getAllScraperKeys(); // ['counselors']
+const keys = getAllScraperKeys(); // ['counselors', 'familytherapy']
 ```
 
 ### 2. AI Provider

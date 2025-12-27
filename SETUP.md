@@ -234,9 +234,10 @@ npm start
 
 | URL | Description |
 |-----|-------------|
-| `/` | Home - Journal browser |
-| `/papers` | All papers table |
+| `/` | Home page |
+| `/issues` | Journal browser (3-column Miller layout, mobile-friendly) |
 | `/issues/[scraper]/[issueId]` | Issue view with AI summary |
+| `/papers` | All papers table |
 | `/u/[token]` | User dashboard |
 | `/u/[token]/keywords` | Manage keywords |
 | `/u/[token]/sources` | Select journals |

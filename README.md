@@ -22,6 +22,7 @@ LLM-powered Korean academic journal summarizer with weekly email digests.
 ## Supported Journals
 
 - 한국상담학회지 (Korean Counseling Journal)
+- 가족과 가족치료 (Family and Family Therapy)
 
 ## Quick Start
 
