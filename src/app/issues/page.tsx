@@ -240,7 +240,7 @@ export default function IssuesPage() {
                   </div>
                   <div className={`text-xs ${selectedIssue === issue.issue_id ? 'text-blue-200' : 'text-gray-500'}`}>
                     {issue.issue_info.year} · {issue.article_count} articles
-                    {issue.has_summary && ' 🤖'}
+                    {issue.has_summary && ' 🤖 AI summary'}
                   </div>
                 </button>
               ))
@@ -315,7 +315,7 @@ export default function IssuesPage() {
                       </div>
                       <div className="text-xs text-gray-500">
                         {issue.issue_info.year} · {issue.article_count} articles
-                        {issue.has_summary && ' 🤖'}
+                        {issue.has_summary && ' 🤖 AI summary'}
                       </div>
                     </div>
                     <span className="text-gray-500">→</span>
