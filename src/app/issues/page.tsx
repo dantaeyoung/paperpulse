@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import IssueContent from '@/components/IssueContent';
 
 interface CachedIssue {
   issue_id: string;
@@ -21,25 +22,11 @@ interface JournalGroup {
   issues: CachedIssue[];
 }
 
-interface CachedArticle {
-  id: string;
-  title: string;
-  authors: string[];
-  year?: string;
-  volume?: string;
-  issue?: string;
-  paperNumber?: number;
-  url?: string;
-  pdfUrl?: string;
-}
-
 export default function IssuesPage() {
   const [journals, setJournals] = useState<JournalGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJournal, setSelectedJournal] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
-  const [articles, setArticles] = useState<CachedArticle[]>([]);
-  const [loadingArticles, setLoadingArticles] = useState(false);
   const [fetchingJournal, setFetchingJournal] = useState<string | null>(null);
   const [fetchProgress, setFetchProgress] = useState<string>('');
 
@@ -60,30 +47,6 @@ export default function IssuesPage() {
   useEffect(() => {
     fetchIssues();
   }, []);
-
-  // Fetch articles when an issue is selected
-  useEffect(() => {
-    if (!selectedJournal || !selectedIssue) {
-      setArticles([]);
-      return;
-    }
-
-    async function fetchArticles() {
-      setLoadingArticles(true);
-      try {
-        const res = await fetch(`/api/test/issue-articles?scraper=${selectedJournal}&issue=${selectedIssue}`);
-        if (res.ok) {
-          const data = await res.json();
-          setArticles(data.articles || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch articles:', err);
-      } finally {
-        setLoadingArticles(false);
-      }
-    }
-    fetchArticles();
-  }, [selectedJournal, selectedIssue]);
 
   async function handleFetchJournalIssues(scraperKey: string) {
     setFetchingJournal(scraperKey);
@@ -153,7 +116,6 @@ export default function IssuesPage() {
   }
 
   const selectedJournalData = journals.find(j => j.scraperKey === selectedJournal);
-  const selectedIssueData = selectedJournalData?.issues.find(i => i.issue_id === selectedIssue);
 
   if (loading) {
     return (
@@ -251,47 +213,20 @@ export default function IssuesPage() {
           </div>
         </div>
 
-        {/* Column 3: Articles */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center justify-between">
-            <span>
-              Articles {selectedIssueData && `(${articles.length})`}
-            </span>
-            {selectedIssue && (
-              <a
-                href={`/issues/${selectedJournal}/${selectedIssue}`}
-                className="text-blue-400 hover:text-blue-300 normal-case font-normal"
-              >
-                Open full view →
-              </a>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {!selectedIssue ? (
-              <div className="p-4 text-sm text-gray-500">Select an issue</div>
-            ) : loadingArticles ? (
-              <div className="p-4 text-sm text-gray-500">Loading articles...</div>
-            ) : articles.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500">No articles found</div>
-            ) : (
-              articles.map((article, idx) => (
-                <div
-                  key={article.id}
-                  className="px-4 py-3 border-b border-gray-800/50 hover:bg-gray-800/30"
-                >
-                  <div className="text-sm font-medium text-white leading-snug">
-                    {article.paperNumber && (
-                      <span className="text-gray-500 mr-2">{article.paperNumber}.</span>
-                    )}
-                    {article.title}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {article.authors?.join(', ')}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        {/* Column 3: Issue Content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {selectedJournal && selectedIssue ? (
+            <IssueContent
+              key={`${selectedJournal}-${selectedIssue}`}
+              scraper={selectedJournal}
+              issueId={selectedIssue}
+              compact={true}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              Select an issue
+            </div>
+          )}
         </div>
       </div>
     </div>
