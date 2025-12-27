@@ -173,7 +173,7 @@ export default function IssuesPage() {
       {/* Three column layout - Desktop */}
       <div className="hidden md:flex flex-1 overflow-hidden">
         {/* Column 1: Journals */}
-        <div className="w-64 border-r border-gray-800 flex flex-col">
+        <div className="w-44 border-r border-gray-800 flex flex-col">
           <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Journals
           </div>
@@ -213,7 +213,7 @@ export default function IssuesPage() {
         </div>
 
         {/* Column 2: Issues */}
-        <div className="w-72 border-r border-gray-800 flex flex-col">
+        <div className="w-48 border-r border-gray-800 flex flex-col">
           <div className="px-3 py-2 border-b border-gray-800 text-xs font-medium text-gray-500 uppercase tracking-wider">
             Issues {selectedJournalData && `(${selectedJournalData.issues.length})`}
           </div>
