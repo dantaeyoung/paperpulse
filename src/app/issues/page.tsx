@@ -149,22 +149,24 @@ export default function IssuesPage() {
       </div>
 
       {/* Header - Mobile with back button */}
-      <div className="md:hidden px-4 py-3 border-b border-gray-800 flex items-center gap-3">
-        {mobilePane > 0 && (
+      <div className="md:hidden px-3 py-2 border-b border-gray-800 flex items-center gap-2">
+        {mobilePane > 0 ? (
           <button
             onClick={() => setMobilePane(mobilePane - 1)}
-            className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all"
           >
-            <span>←</span>
-            <span className="text-sm">
+            <span className="text-lg">‹</span>
+            <span className="text-sm font-medium">
               {mobilePane === 1 ? 'Journals' : 'Issues'}
             </span>
           </button>
+        ) : (
+          <div className="w-2" />
         )}
-        <h1 className="text-lg font-semibold text-white flex-1">
+        <h1 className="text-base font-semibold text-white flex-1 truncate">
           {mobilePane === 0 && 'Journals'}
           {mobilePane === 1 && (selectedJournalData?.name || 'Issues')}
-          {mobilePane === 2 && `Vol.${selectedJournalData?.issues.find(i => i.issue_id === selectedIssue)?.issue_info.volume || '?'}`}
+          {mobilePane === 2 && `Vol.${selectedJournalData?.issues.find(i => i.issue_id === selectedIssue)?.issue_info.volume || '?'} No.${selectedJournalData?.issues.find(i => i.issue_id === selectedIssue)?.issue_info.issue || '?'}`}
         </h1>
       </div>
 
